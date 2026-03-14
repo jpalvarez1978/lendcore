@@ -167,12 +167,12 @@ async function main() {
   if (paramCount === 0) {
     await prisma.systemParameter.createMany({
       data: [
-        { key: 'DEFAULT_INTEREST_RATE', value: '0.03', dataType: 'NUMBER', category: 'FINANCIAL' },
-        { key: 'MAX_LOAN_AMOUNT', value: '50000', dataType: 'NUMBER', category: 'FINANCIAL' },
-        { key: 'MIN_LOAN_AMOUNT', value: '100', dataType: 'NUMBER', category: 'FINANCIAL' },
-        { key: 'DEFAULT_LOAN_TERM_MONTHS', value: '12', dataType: 'NUMBER', category: 'BUSINESS' },
-        { key: 'LATE_PAYMENT_PENALTY_RATE', value: '0.05', dataType: 'NUMBER', category: 'FINANCIAL' },
-        { key: 'GRACE_PERIOD_DAYS', value: '3', dataType: 'NUMBER', category: 'COLLECTION' },
+        { key: 'DEFAULT_INTEREST_RATE', value: '0.03', type: 'DECIMAL', category: 'FINANCIAL' },
+        { key: 'MAX_LOAN_AMOUNT', value: '50000', type: 'DECIMAL', category: 'FINANCIAL' },
+        { key: 'MIN_LOAN_AMOUNT', value: '100', type: 'DECIMAL', category: 'FINANCIAL' },
+        { key: 'DEFAULT_LOAN_TERM_MONTHS', value: '12', type: 'INTEGER', category: 'BUSINESS' },
+        { key: 'LATE_PAYMENT_PENALTY_RATE', value: '0.05', type: 'DECIMAL', category: 'FINANCIAL' },
+        { key: 'GRACE_PERIOD_DAYS', value: '3', type: 'INTEGER', category: 'COLLECTION' },
       ],
     })
     console.log('✅ Parámetros creados\n')
