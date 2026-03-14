@@ -1,0 +1,189 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 42 39% 95%;
+    --foreground: 216 40% 16%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 216 40% 16%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 216 40% 16%;
+
+    --primary: 214 50% 16%;
+    --primary-foreground: 42 39% 95%;
+
+    --secondary: 38 46% 88%;
+    --secondary-foreground: 216 40% 16%;
+
+    --muted: 214 26% 93%;
+    --muted-foreground: 216 18% 42%;
+
+    --accent: 40 51% 84%;
+    --accent-foreground: 216 40% 16%;
+
+    --destructive: 3 61% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 215 22% 87%;
+    --input: 215 22% 87%;
+    --ring: 39 51% 54%;
+
+    --success: 152 59% 31%;
+    --warning: 36 66% 47%;
+
+    --radius: 1rem;
+  }
+
+  .dark {
+    --background: 216 42% 10%;
+    --foreground: 42 39% 95%;
+
+    --card: 216 37% 13%;
+    --card-foreground: 42 39% 95%;
+
+    --popover: 216 37% 13%;
+    --popover-foreground: 42 39% 95%;
+
+    --primary: 40 51% 66%;
+    --primary-foreground: 216 42% 10%;
+
+    --secondary: 216 27% 22%;
+    --secondary-foreground: 42 39% 95%;
+
+    --muted: 216 23% 18%;
+    --muted-foreground: 214 17% 70%;
+
+    --accent: 216 27% 22%;
+    --accent-foreground: 42 39% 95%;
+
+    --destructive: 3 61% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 216 24% 24%;
+    --input: 216 24% 24%;
+    --ring: 40 51% 66%;
+
+    --success: 152 59% 37%;
+    --warning: 36 66% 52%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    min-height: 100vh;
+    font-family: var(--font-sans), sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    background:
+      radial-gradient(circle at top left, rgba(200, 155, 85, 0.16), transparent 28%),
+      radial-gradient(circle at top right, rgba(20, 38, 63, 0.1), transparent 28%),
+      linear-gradient(180deg, #fbf8f2 0%, #f4efe4 54%, #f6f2ea 100%);
+  }
+  h1,
+  h2,
+  h3,
+  .font-display {
+    font-family: var(--font-sans), sans-serif;
+    letter-spacing: -0.035em;
+  }
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+  .brand-grid {
+    background-image:
+      linear-gradient(to right, rgba(20, 38, 63, 0.07) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(20, 38, 63, 0.07) 1px, transparent 1px);
+    background-size: 36px 36px;
+  }
+  .brand-panel {
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0.78));
+    border: 1px solid rgba(255, 255, 255, 0.8);
+    box-shadow:
+      0 28px 60px -42px rgba(13, 23, 39, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.65);
+    backdrop-filter: blur(16px);
+  }
+  .brand-shell {
+    position: relative;
+    overflow: hidden;
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(247, 242, 232, 0.82)),
+      linear-gradient(135deg, rgba(200, 155, 85, 0.08), transparent 45%);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      0 24px 60px -36px rgba(20, 38, 63, 0.45),
+      inset 0 1px 0 rgba(255, 255, 255, 0.7);
+    backdrop-filter: blur(18px);
+  }
+  .brand-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(20, 38, 63, 0.18), transparent);
+  }
+  .brand-text-gradient {
+    background: linear-gradient(120deg, #14263f 0%, #1f3a5c 52%, #a97b36 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Scrollbar personalizado con colores de marca */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+  border-radius: 999px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, rgba(31, 58, 92, 0.45), rgba(169, 123, 54, 0.45));
+  border-radius: 999px;
+  border: 2px solid hsl(var(--background));
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, rgba(31, 58, 92, 0.62), rgba(169, 123, 54, 0.62));
+}
+
+/* Animaciones personalizadas */
+@keyframes slide-in-from-right {
+  from {
+    transform: translateX(100%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-from-right 0.3s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}

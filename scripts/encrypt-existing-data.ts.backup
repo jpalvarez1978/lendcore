@@ -1,0 +1,212 @@
+/**
+ * Script de Migración - Encriptar Datos Existentes
+ *
+ * IMPORTANTE: Haz un backup de la base de datos antes de ejecutar este script
+ *
+ * Uso:
+ * 1. Asegúrate de tener ENCRYPTION_KEY en .env
+ * 2. Haz backup: pg_dump lendcore > backup.sql
+ * 3. Ejecuta: npx tsx scripts/encrypt-existing-data.ts
+ */
+
+import { PrismaClient } from '@prisma/client'
+import {
+  encryptDNI,
+  encryptPhone,
+  encryptIBAN,
+  encryptAddress,
+  encryptIfNeeded,
+} from '../src/lib/security/encryption'
+
+const prisma = new PrismaClient()
+
+async function encryptExistingData() {
+  console.log('🔒 Iniciando encriptación de datos existentes...\n')
+
+  try {
+    // 1. Encriptar datos de clientes
+    console.log('📋 Procesando clientes...')
+    const clients = await prisma.client.findMany({
+      select: {
+        id: true,
+        dni: true,
+        phone: true,
+        email: true,
+        address: true,
+        iban: true,
+      },
+    })
+
+    console.log(`   Encontrados: ${clients.length} clientes`)
+
+    let encryptedCount = 0
+    for (const client of clients) {
+      const updates: any = {}
+
+      // Solo encriptar si el dato existe y no está ya encriptado
+      if (client.dni) {
+        updates.dni = encryptIfNeeded(client.dni)
+      }
+
+      if (client.phone) {
+        updates.phone = encryptIfNeeded(client.phone)
+      }
+
+      if (client.email) {
+        updates.email = encryptIfNeeded(client.email)
+      }
+
+      if (client.address) {
+        updates.address = encryptIfNeeded(client.address)
+      }
+
+      if (client.iban) {
+        updates.iban = encryptIfNeeded(client.iban)
+      }
+
+      // Actualizar si hay cambios
+      if (Object.keys(updates).length > 0) {
+        await prisma.client.update({
+          where: { id: client.id },
+          data: updates,
+        })
+        encryptedCount++
+      }
+    }
+
+    console.log(`   ✅ Encriptados: ${encryptedCount} clientes\n`)
+
+    // 2. Encriptar datos de personas individuales
+    console.log('👤 Procesando personas individuales...')
+    const individuals = await prisma.individual.findMany({
+      select: {
+        id: true,
+        dni: true,
+        phone: true,
+        secondaryPhone: true,
+        address: true,
+        iban: true,
+      },
+    })
+
+    console.log(`   Encontrados: ${individuals.length} registros`)
+
+    let individualEncryptedCount = 0
+    for (const individual of individuals) {
+      const updates: any = {}
+
+      if (individual.dni) {
+        updates.dni = encryptIfNeeded(individual.dni)
+      }
+
+      if (individual.phone) {
+        updates.phone = encryptIfNeeded(individual.phone)
+      }
+
+      if (individual.secondaryPhone) {
+        updates.secondaryPhone = encryptIfNeeded(individual.secondaryPhone)
+      }
+
+      if (individual.address) {
+        updates.address = encryptIfNeeded(individual.address)
+      }
+
+      if (individual.iban) {
+        updates.iban = encryptIfNeeded(individual.iban)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.individual.update({
+          where: { id: individual.id },
+          data: updates,
+        })
+        individualEncryptedCount++
+      }
+    }
+
+    console.log(`   ✅ Encriptados: ${individualEncryptedCount} registros\n`)
+
+    // 3. Encriptar datos de empresas
+    console.log('🏢 Procesando empresas...')
+    const businesses = await prisma.business.findMany({
+      select: {
+        id: true,
+        cif: true,
+        phone: true,
+        address: true,
+        iban: true,
+      },
+    })
+
+    console.log(`   Encontrados: ${businesses.length} registros`)
+
+    let businessEncryptedCount = 0
+    for (const business of businesses) {
+      const updates: any = {}
+
+      if (business.cif) {
+        updates.cif = encryptIfNeeded(business.cif)
+      }
+
+      if (business.phone) {
+        updates.phone = encryptIfNeeded(business.phone)
+      }
+
+      if (business.address) {
+        updates.address = encryptIfNeeded(business.address)
+      }
+
+      if (business.iban) {
+        updates.iban = encryptIfNeeded(business.iban)
+      }
+
+      if (Object.keys(updates).length > 0) {
+        await prisma.business.update({
+          where: { id: business.id },
+          data: updates,
+        })
+        businessEncryptedCount++
+      }
+    }
+
+    console.log(`   ✅ Encriptados: ${businessEncryptedCount} registros\n`)
+
+    // Resumen
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log('✅ MIGRACIÓN COMPLETADA')
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━')
+    console.log(`📊 Resumen:`)
+    console.log(`   • Clientes: ${encryptedCount}/${clients.length}`)
+    console.log(`   • Individuales: ${individualEncryptedCount}/${individuals.length}`)
+    console.log(`   • Empresas: ${businessEncryptedCount}/${businesses.length}`)
+    console.log(
+      `   • Total: ${
+        encryptedCount + individualEncryptedCount + businessEncryptedCount
+      } registros encriptados\n`
+    )
+
+    console.log('⚠️  IMPORTANTE:')
+    console.log('   1. Verifica que los datos se vean correctamente en la aplicación')
+    console.log('   2. Guarda un backup de la BD encriptada')
+    console.log('   3. Guarda la ENCRYPTION_KEY en un lugar seguro (ej: 1Password)')
+    console.log('   4. Si pierdes la clave, NO podrás recuperar los datos\n')
+  } catch (error) {
+    console.error('❌ Error durante la encriptación:', error)
+    console.error('\n⚠️  Si algo salió mal, restaura el backup:')
+    console.error('   psql lendcore < backup.sql\n')
+    process.exit(1)
+  } finally {
+    await prisma.$disconnect()
+  }
+}
+
+// Ejecutar
+encryptExistingData()
+  .then(() => {
+    console.log('🎉 Script completado exitosamente')
+    process.exit(0)
+  })
+  .catch((error) => {
+    console.error('💥 Error fatal:', error)
+    process.exit(1)
+  })

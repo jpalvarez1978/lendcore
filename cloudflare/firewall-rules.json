@@ -1,0 +1,111 @@
+{
+  "description": "Reglas de Firewall para LendCore - Importar en Cloudflare Dashboard",
+  "rules": [
+    {
+      "name": "Bloquear Países No-Europeos",
+      "description": "Solo permite tráfico desde España y Europa Occidental",
+      "expression": "(not ip.geoip.country in {\"ES\" \"FR\" \"PT\" \"IT\" \"DE\" \"GB\" \"BE\" \"NL\" \"CH\" \"AT\"})",
+      "action": "block",
+      "enabled": true,
+      "priority": 1
+    },
+    {
+      "name": "Protección Login - Rate Limit",
+      "description": "Máximo 5 intentos de login por 10 minutos",
+      "expression": "(http.request.uri.path eq \"/api/auth/callback/credentials\" and rate.limit > 5)",
+      "action": "block",
+      "enabled": true,
+      "priority": 2,
+      "rateLimit": {
+        "threshold": 5,
+        "period": 600,
+        "action": "block"
+      }
+    },
+    {
+      "name": "Bloquear SQL Injection",
+      "description": "Detecta patrones de SQL injection en URL",
+      "expression": "(http.request.uri contains \"union select\" or http.request.uri contains \"drop table\" or http.request.uri contains \"insert into\" or http.request.uri contains \"delete from\")",
+      "action": "block",
+      "enabled": true,
+      "priority": 3
+    },
+    {
+      "name": "Bloquear XSS",
+      "description": "Detecta patrones de XSS en URL",
+      "expression": "(http.request.uri contains \"<script\" or http.request.uri contains \"javascript:\" or http.request.uri contains \"onerror=\")",
+      "action": "block",
+      "enabled": true,
+      "priority": 4
+    },
+    {
+      "name": "Bloquear Path Traversal",
+      "description": "Previene acceso a archivos del sistema",
+      "expression": "(http.request.uri contains \"../\" or http.request.uri contains \"..\\\\\")",
+      "action": "block",
+      "enabled": true,
+      "priority": 5
+    },
+    {
+      "name": "Bloquear Bots Maliciosos",
+      "description": "Bots de hacking conocidos",
+      "expression": "(http.user_agent contains \"sqlmap\" or http.user_agent contains \"nikto\" or http.user_agent contains \"nmap\" or http.user_agent contains \"masscan\" or http.user_agent contains \"metasploit\" or http.user_agent contains \"burp\")",
+      "action": "block",
+      "enabled": true,
+      "priority": 6
+    },
+    {
+      "name": "Challenge Tráfico Sospechoso",
+      "description": "CAPTCHA para requests sin Referer",
+      "expression": "(not http.referer contains \"lendcore.es\" and http.request.uri.path contains \"/api/\")",
+      "action": "managed_challenge",
+      "enabled": true,
+      "priority": 7
+    },
+    {
+      "name": "Rate Limit API General",
+      "description": "Máximo 100 requests por minuto a /api/*",
+      "expression": "(http.request.uri.path contains \"/api/\" and rate.limit > 100)",
+      "action": "block",
+      "enabled": true,
+      "priority": 8,
+      "rateLimit": {
+        "threshold": 100,
+        "period": 60,
+        "action": "block"
+      }
+    },
+    {
+      "name": "Proteger Admin Panel",
+      "description": "Extra seguridad para rutas de administración",
+      "expression": "(http.request.uri.path contains \"/dashboard/admin\" or http.request.uri.path contains \"/dashboard/configuracion\" or http.request.uri.path contains \"/dashboard/seguridad\")",
+      "action": "managed_challenge",
+      "enabled": true,
+      "priority": 9
+    },
+    {
+      "name": "Bloquear IPs en Blacklist",
+      "description": "IPs sospechosas identificadas (actualizar manualmente)",
+      "expression": "(ip.src in {192.0.2.1 198.51.100.1})",
+      "action": "block",
+      "enabled": false,
+      "priority": 10,
+      "note": "Agregar IPs maliciosas detectadas en Analytics"
+    }
+  ],
+  "instructions": {
+    "step1": "Ve a Cloudflare Dashboard → tu sitio → Security → WAF",
+    "step2": "Click 'Create rule' para cada regla arriba",
+    "step3": "Copia el 'expression' y selecciona el 'action'",
+    "step4": "Habilita las reglas y guarda",
+    "step5": "Verifica en Analytics → Security que funcionan correctamente"
+  },
+  "managed_rulesets": {
+    "note": "Solo disponible en planes Pro+",
+    "recommended": [
+      "Cloudflare OWASP Core Ruleset",
+      "Cloudflare Managed Ruleset",
+      "Cloudflare Exposed Credentials Check"
+    ]
+  }
+}

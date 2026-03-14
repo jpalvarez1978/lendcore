@@ -1,0 +1,798 @@
+// schema.prisma - JEAN PAUL Servicios Financieros
+// Sistema de gestión de préstamos privados
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTENTICACIÓN Y USUARIOS
+// ============================================
+
+enum UserRole {
+  ADMIN
+  ANALYST
+  COLLECTION
+  VIEWER
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+model User {
+  id           String     @id @default(uuid())
+  email        String     @unique
+  passwordHash String
+  name         String // Nombre completo para mostrar
+  firstName    String
+  lastName     String
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  lastLoginAt DateTime?
+
+  // Relaciones
+  auditLogs                 AuditLog[]
+  createdLoans              Loan[]              @relation("CreatedBy")
+  approvedApplications      CreditApplication[] @relation("ApprovedBy")
+  approvedLimitChanges      CreditLimitChange[] @relation("ApprovedBy")
+  assignedCollectionActions CollectionAction[]
+  processedPayments         Payment[]           @relation("ProcessedPayments")
+  clientNotes               ClientNote[]
+
+  @@map("users")
+}
+
+// ============================================
+// CLIENTES
+// ============================================
+
+enum ClientType {
+  INDIVIDUAL
+  BUSINESS
+}
+
+enum ClientStatus {
+  ACTIVE
+  INACTIVE
+  BLOCKED
+  UNDER_REVIEW
+}
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+model Client {
+  id        String       @id @default(uuid())
+  type      ClientType
+  status    ClientStatus @default(ACTIVE)
+  riskLevel RiskLevel    @default(MEDIUM)
+
+  // Datos comunes
+  email      String?
+  phone      String
+  address    String?
+  city       String?
+  postalCode String?
+
+  // Límite de crédito
+  creditLimit Decimal @default(0) @db.Decimal(15, 2)
+
+  // Scoring interno
+  internalScore Int? @default(50)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  individualProfile  IndividualProfile?
+  businessProfile    BusinessProfile?
+  creditApplications CreditApplication[]
+  loans              Loan[]
+  creditLimitChanges CreditLimitChange[]
+  collectionActions  CollectionAction[]
+  paymentPromises    PaymentPromise[]
+  documents          Document[]
+  notes              ClientNote[]
+
+  @@map("clients")
+}
+
+model IndividualProfile {
+  id       String @id @default(uuid())
+  clientId String @unique
+
+  firstName String
+  lastName  String
+  taxId     String @unique // DNI/NIE
+
+  dateOfBirth DateTime?
+  occupation  String?
+  income      Decimal?  @db.Decimal(12, 2)
+
+  // Referencias
+  reference1Name  String?
+  reference1Phone String?
+  reference2Name  String?
+  reference2Phone String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("individual_profiles")
+}
+
+model BusinessProfile {
+  id       String @id @default(uuid())
+  clientId String @unique
+
+  businessName  String
+  taxId         String @unique // CIF
+  legalRepName  String
+  legalRepTaxId String // DNI del representante
+
+  industry      String?
+  annualRevenue Decimal? @db.Decimal(15, 2)
+  employeeCount Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  @@map("business_profiles")
+}
+
+// ============================================
+// SOLICITUDES DE CRÉDITO
+// ============================================
+
+enum ApplicationStatus {
+  DRAFT
+  UNDER_REVIEW
+  APPROVED
+  REJECTED
+  DISBURSED
+  CANCELLED
+}
+
+model CreditApplication {
+  id       String @id @default(uuid())
+  clientId String
+
+  requestedAmount  Decimal          @db.Decimal(15, 2)
+  purpose          String?
+  termMonths       Int
+  proposedRate     Decimal          @db.Decimal(5, 4) // ej: 0.0350 = 3.5%
+  paymentFrequency PaymentFrequency @default(MONTHLY)
+
+  status ApplicationStatus @default(DRAFT)
+
+  // Workflow
+  submittedAt     DateTime?
+  reviewedAt      DateTime?
+  approvedBy      String?
+  approvalNotes   String?
+  rejectionReason String?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  client   Client @relation(fields: [clientId], references: [id])
+  approver User?  @relation("ApprovedBy", fields: [approvedBy], references: [id])
+
+  @@map("credit_applications")
+}
+
+// ============================================
+// PRÉSTAMOS
+// ============================================
+
+enum LoanStatus {
+  ACTIVE
+  PAID
+  DEFAULTED
+  RESTRUCTURED
+  CANCELLED
+}
+
+enum PaymentFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+  QUARTERLY
+}
+
+enum InterestType {
+  FIXED_AMOUNT
+  PERCENTAGE_MONTHLY
+  PERCENTAGE_ANNUAL
+}
+
+enum AmortizationType {
+  AMERICAN // Solo intereses, capital al final (99% de casos)
+  FRENCH // Cuotas fijas (sistema francés)
+  GERMAN // Cuotas de capital fijas, intereses decrecientes
+  SIMPLE // Capital + interés en una sola cuota
+  CUSTOM // Manual/Personalizado
+}
+
+model Loan {
+  id         String @id @default(uuid())
+  loanNumber String @unique // Código interno
+  clientId   String
+
+  // Monto principal
+  principalAmount      Decimal @db.Decimal(15, 2)
+  outstandingPrincipal Decimal @db.Decimal(15, 2)
+
+  // Tipo de amortización (NUEVO)
+  amortizationType AmortizationType @default(AMERICAN)
+
+  // Interés
+  interestType        InterestType
+  interestRate        Decimal      @db.Decimal(5, 4) // Si es %, ej: 0.0250 = 2.5%
+  fixedInterestAmount Decimal?     @db.Decimal(15, 2) // Si es monto fijo
+
+  // Términos
+  termMonths       Int
+  paymentFrequency PaymentFrequency
+
+  // Configuración de días de pago (NUEVO)
+  allowSaturdayPayments Boolean @default(true)
+  allowSundayPayments   Boolean @default(true)
+
+  // Fechas
+  disbursementDate DateTime
+  firstDueDate     DateTime
+  finalDueDate     DateTime
+
+  // Estado
+  status LoanStatus @default(ACTIVE)
+
+  // Tracking financiero
+  totalInterest Decimal @default(0) @db.Decimal(15, 2)
+  totalPaid     Decimal @default(0) @db.Decimal(15, 2)
+  totalPenalty  Decimal @default(0) @db.Decimal(15, 2)
+
+  // Garantía estructurada (MEJORADO)
+  hasGuarantor     Boolean @default(false)
+  guarantorName    String?
+  guarantorTaxId   String? // DNI del garante
+  guarantorPhone   String?
+  guarantorAddress String?
+
+  collateralType  String?
+  collateralValue Decimal? @db.Decimal(15, 2)
+  collateralNotes String?
+
+  // Observaciones y notas (NUEVO)
+  notes              String? // Notas internas del préstamo
+  clientInstructions String? // Instrucciones específicas del cliente
+
+  // Generación de documentos (NUEVO)
+  sendEmailOnCreate   Boolean   @default(true)
+  contractGenerated   Boolean   @default(false)
+  contractUrl         String?
+  contractGeneratedAt DateTime?
+
+  // Responsable
+  createdBy String
+
+  // Cobranza
+  collectorId String? // Cobrador asignado (sin credenciales de sistema)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  client      Client      @relation(fields: [clientId], references: [id])
+  creator     User        @relation("CreatedBy", fields: [createdBy], references: [id])
+  collector   Collector?  @relation("CollectorLoans", fields: [collectorId], references: [id])
+  installments Installment[]
+  payments    Payment[]
+
+  @@map("loans")
+}
+
+// ============================================
+// CUOTAS / CRONOGRAMA
+// ============================================
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  OVERDUE
+  PARTIAL
+}
+
+model Installment {
+  id     String @id @default(uuid())
+  loanId String
+
+  installmentNumber Int
+  dueDate           DateTime
+
+  // Montos originales (plan de pago)
+  principalAmount Decimal @db.Decimal(15, 2)
+  interestAmount  Decimal @db.Decimal(15, 2)
+  totalAmount     Decimal @db.Decimal(15, 2)
+
+  // Tracking detallado de pagos realizados
+  paidPrincipal Decimal @default(0) @db.Decimal(15, 2)
+  paidInterest  Decimal @default(0) @db.Decimal(15, 2)
+  paidPenalty   Decimal @default(0) @db.Decimal(15, 2)
+  paidAmount    Decimal @default(0) @db.Decimal(15, 2) // Total pagado
+  pendingAmount Decimal @db.Decimal(15, 2)
+
+  // Mora acumulada
+  penaltyAmount Decimal @default(0) @db.Decimal(15, 2)
+  daysOverdue   Int     @default(0)
+
+  status InstallmentStatus @default(PENDING)
+
+  paidAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  loan Loan @relation(fields: [loanId], references: [id], onDelete: Cascade)
+
+  @@unique([loanId, installmentNumber])
+  @@map("installments")
+}
+
+// ============================================
+// PAGOS
+// ============================================
+
+enum PaymentMethod {
+  CASH
+  BANK_TRANSFER
+  CARD
+  CHECK
+  OTHER
+}
+
+model Payment {
+  id     String @id @default(uuid())
+  loanId String
+
+  amount        Decimal       @db.Decimal(15, 2)
+  paymentMethod PaymentMethod
+  reference     String? // Número de transferencia, etc.
+
+  paidAt        DateTime @default(now())
+  processedById String?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  loan        Loan                @relation(fields: [loanId], references: [id])
+  processedBy User?               @relation("ProcessedPayments", fields: [processedById], references: [id])
+  allocations PaymentAllocation[]
+
+  @@map("payments")
+}
+
+// ============================================
+// ASIGNACIÓN DE PAGOS (imputación)
+// ============================================
+
+enum AllocationType {
+  PRINCIPAL
+  INTEREST
+  PENALTY
+  FEE
+}
+
+model PaymentAllocation {
+  id        String @id @default(uuid())
+  paymentId String
+
+  type   AllocationType
+  amount Decimal        @db.Decimal(15, 2)
+
+  createdAt DateTime @default(now())
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@map("payment_allocations")
+}
+
+// ============================================
+// AMPLIACIÓN DE CUPO
+// ============================================
+
+model CreditLimitChange {
+  id       String @id @default(uuid())
+  clientId String
+
+  previousLimit Decimal @db.Decimal(15, 2)
+  newLimit      Decimal @db.Decimal(15, 2)
+
+  reason     String?
+  approvedBy String
+  approvedAt DateTime @default(now())
+
+  // Si cambia tasa asociada
+  previousRate Decimal? @db.Decimal(5, 4)
+  newRate      Decimal? @db.Decimal(5, 4)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+
+  client   Client @relation(fields: [clientId], references: [id])
+  approver User   @relation("ApprovedBy", fields: [approvedBy], references: [id])
+
+  @@map("credit_limit_changes")
+}
+
+// ============================================
+// COBRANZA
+// ============================================
+
+enum CollectionActionType {
+  CALL
+  EMAIL
+  SMS
+  VISIT
+  LEGAL_NOTICE
+  PROMISE_FOLLOWUP
+  RESTRUCTURE_PROPOSAL
+  OTHER
+}
+
+enum CollectionActionStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum CollectionResult {
+  NO_ANSWER
+  PHONE_OFF
+  WRONG_NUMBER
+  PROMISE_MADE
+  PAYMENT_MADE
+  REFUSED_TO_PAY
+  AGREED_TO_RESTRUCTURE
+  REQUESTED_EXTENSION
+  HOSTILE
+  OTHER
+}
+
+model CollectionAction {
+  id       String  @id @default(uuid())
+  clientId String
+  loanId   String?
+
+  actionType CollectionActionType
+  status     CollectionActionStatus @default(PENDING)
+  result     CollectionResult?
+
+  description String
+  notes       String? // Notas detalladas de la gestión
+
+  assignedTo  String?
+  completedBy String?
+
+  scheduledDate DateTime? // Fecha planificada
+  actionDate    DateTime  @default(now()) // Fecha real de ejecución
+  followUpDate  DateTime? // Próximo seguimiento
+  completedAt   DateTime?
+
+  // Métricas de gestión
+  attemptNumber Int  @default(1) // Intento número X
+  duration      Int? // Duración en minutos (para llamadas/visitas)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client   Client @relation(fields: [clientId], references: [id])
+  assignee User?  @relation(fields: [assignedTo], references: [id])
+
+  @@index([clientId])
+  @@index([assignedTo])
+  @@index([status])
+  @@index([scheduledDate])
+  @@map("collection_actions")
+}
+
+enum PromiseStatus {
+  PENDING
+  KEPT
+  BROKEN
+  RENEGOTIATED
+}
+
+model PaymentPromise {
+  id       String  @id @default(uuid())
+  clientId String
+  loanId   String?
+
+  promiseDate    DateTime
+  promisedAmount Decimal  @db.Decimal(15, 2)
+
+  status           PromiseStatus @default(PENDING)
+  actualPaidDate   DateTime?
+  actualPaidAmount Decimal?      @db.Decimal(15, 2)
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id])
+
+  @@map("payment_promises")
+}
+
+// ============================================
+// DOCUMENTOS Y NOTAS
+// ============================================
+
+enum EntityType {
+  CLIENT
+  LOAN
+  APPLICATION
+  PAYMENT
+}
+
+model Document {
+  id         String     @id @default(uuid())
+  entityType EntityType
+  entityId   String
+
+  fileName String
+  fileUrl  String
+  fileSize Int?
+  mimeType String?
+
+  uploadedBy String?
+  uploadedAt DateTime @default(now())
+
+  description String?
+
+  client Client? @relation(fields: [entityId], references: [id])
+
+  @@map("documents")
+}
+
+model ClientNote {
+  id       String @id @default(uuid())
+  clientId String
+
+  content    String
+  isPinned   Boolean @default(false)
+  isInternal Boolean @default(false) // Si es visible solo internamente
+
+  userId    String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  client Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id])
+
+  @@index([clientId])
+  @@index([userId])
+  @@map("client_notes")
+}
+
+// ============================================
+// CONFIGURACIÓN DEL SISTEMA
+// ============================================
+
+enum ParameterCategory {
+  FINANCIAL // Tasas, moras, intereses
+  RISK // Niveles de riesgo, scoring
+  COLLECTION // Reglas de cobranza, alertas
+  BUSINESS // Reglas de negocio generales
+  SYSTEM // Configuración del sistema
+}
+
+enum ParameterType {
+  DECIMAL
+  INTEGER
+  BOOLEAN
+  STRING
+  JSON
+}
+
+model SystemParameter {
+  id String @id @default(uuid())
+
+  category ParameterCategory
+  key      String            @unique // ej: "default_penalty_rate", "max_loan_amount"
+  value    String // Valor serializado
+  type     ParameterType // Para deserializar correctamente
+
+  description String? // Descripción del parámetro
+  unit        String? // ej: "percentage", "days", "euros"
+
+  isActive   Boolean @default(true)
+  isEditable Boolean @default(true) // Algunos parámetros críticos no deberían ser editables
+
+  minValue String? // Validación mínima (si aplica)
+  maxValue String? // Validación máxima (si aplica)
+
+  lastModifiedBy String?
+  lastModifiedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("system_parameters")
+}
+
+// Historial de cambios en parámetros críticos
+model ParameterChangeLog {
+  id String @id @default(uuid())
+
+  parameterKey  String
+  previousValue String
+  newValue      String
+
+  changedBy String
+  reason    String?
+
+  changedAt DateTime @default(now())
+
+  @@index([parameterKey])
+  @@index([changedAt])
+  @@map("parameter_change_logs")
+}
+
+// ============================================
+// AUDITORÍA
+// ============================================
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+  UPDATE_STATUS
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  DISBURSE
+  PAYMENT_REGISTERED
+  CREDIT_LIMIT_CHANGE
+  NOTE_ADDED
+  PARAMETER_CHANGED
+  PROMISE_CREATED
+  PROMISE_BROKEN
+  COLLECTION_ACTION
+  RESTRUCTURE
+}
+
+model AuditLog {
+  id     String  @id @default(uuid())
+  userId String?
+
+  action     AuditAction
+  entityType String // clients, loans, payments, etc.
+  entityId   String?
+
+  oldValue Json?
+  newValue Json?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// SEGURIDAD - LOGS DE EVENTOS DE SEGURIDAD
+// ============================================
+
+enum SecurityEventType {
+  LOGIN_SUCCESS
+  LOGIN_FAILED
+  LOGOUT
+  PASSWORD_CHANGE
+  PERMISSION_CHANGE
+  RATE_LIMIT_EXCEEDED
+  SUSPICIOUS_ACTIVITY
+  IP_BLOCKED
+  MASS_EXPORT
+  MASS_DELETE
+  UNAUTHORIZED_ACCESS
+  SESSION_EXPIRED
+}
+
+enum SecuritySeverity {
+  INFO // Eventos normales (login exitoso)
+  WARNING // Actividad inusual pero no crítica
+  ALERT // Actividad sospechosa
+  CRITICAL // Ataque confirmado o brecha de seguridad
+}
+
+model SecurityLog {
+  id String @id @default(uuid())
+
+  eventType SecurityEventType
+  severity  SecuritySeverity  @default(INFO)
+
+  userId    String?
+  email     String?
+  ipAddress String
+  userAgent String?
+  location  String? // País/Ciudad (opcional)
+
+  description String
+  metadata    Json? // Datos adicionales del evento
+
+  // Detección de patrones
+  isBlocked Boolean @default(false)
+  alertSent Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@index([eventType])
+  @@index([severity])
+  @@index([userId])
+  @@index([ipAddress])
+  @@index([createdAt])
+  @@map("security_logs")
+}
+
+// ============================================
+// COBRADORES - Gestión de cobranza (sin credenciales)
+// ============================================
+
+model Collector {
+  id String @id @default(uuid())
+
+  // Información básica
+  name  String
+  email String // Para contacto, no login
+  phone String?
+
+  // Estado
+  isActive Boolean @default(true)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relaciones
+  assignedLoans Loan[] @relation("CollectorLoans")
+
+  @@map("collectors")
+}

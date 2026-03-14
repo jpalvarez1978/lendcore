@@ -1,0 +1,47 @@
+{
+  "node": {
+    "0031c4e9e883942e5c72a204e781466d86b7e50ee2": {
+      "workers": {
+        "app/(dashboard)/dashboard/reportes/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/prestamos/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/cobranza/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/configuracion/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/clientes/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        },
+        "app/(dashboard)/dashboard/clientes/[id]/page": {
+          "moduleId": "(action-browser)/./node_modules/next/dist/build/webpack/loaders/next-flight-action-entry-loader.js?actions=%5B%5B%22%2FUsers%2Fpablocisneros%2FDesktop%2FPROYECTOS%20TRABAJO%20PROGRAMACION%20%2FPROYECTO%20PRESTAMOS%20ESPAN%CC%83A%2Fsrc%2Fapp%2Factions%2Fauth.ts%22%2C%5B%5B%220031c4e9e883942e5c72a204e781466d86b7e50ee2%22%2C%22logout%22%5D%5D%5D%5D&__client_imported__=true!",
+          "async": false
+        }
+      },
+      "layer": {
+        "app/(dashboard)/dashboard/reportes/page": "action-browser",
+        "app/(dashboard)/dashboard/prestamos/page": "action-browser",
+        "app/(dashboard)/dashboard/cobranza/page": "action-browser",
+        "app/(dashboard)/dashboard/configuracion/page": "action-browser",
+        "app/(dashboard)/dashboard/page": "action-browser",
+        "app/(dashboard)/dashboard/clientes/page": "action-browser",
+        "app/(dashboard)/dashboard/clientes/[id]/page": "action-browser"
+      }
+    }
+  },
+  "edge": {},
+  "encryptionKey": "AYLBXUCfw+HjlowSsGN9PzCTUGSjUmEzSWI/oR1X/II="
+}

@@ -1,0 +1,8 @@
+{
+  "/api/dashboard/alerts/route": "app/api/dashboard/alerts/route.js",
+  "/(dashboard)/dashboard/configuracion/page": "app/(dashboard)/dashboard/configuracion/page.js",
+  "/(dashboard)/dashboard/prestamos/page": "app/(dashboard)/dashboard/prestamos/page.js",
+  "/(dashboard)/dashboard/clientes/[id]/page": "app/(dashboard)/dashboard/clientes/[id]/page.js",
+  "/(dashboard)/dashboard/page": "app/(dashboard)/dashboard/page.js",
+  "/(dashboard)/dashboard/clientes/page": "app/(dashboard)/dashboard/clientes/page.js"
+}

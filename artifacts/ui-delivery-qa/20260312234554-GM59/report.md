@@ -1,0 +1,34 @@
+# QA visual-operativa de entrega
+
+- Fecha: 12/3/2026, 18:46:42
+- Base URL: http://127.0.0.1:3001
+- Stamp: 20260312234554-GM59
+- Resultado: 4 PASS / 1 FAIL
+
+## Resumen
+
+| Estado | Área | Paso | Detalle | Evidencia |
+| --- | --- | --- | --- | --- |
+| PASS | Acceso | Pantalla de login analyst | La marca y la pantalla de acceso cargan correctamente. | [captura](screenshots/analyst-login.png) |
+| PASS | Acceso | Login analyst | La sesión de analyst redirige correctamente al dashboard. | [captura](screenshots/analyst-dashboard.png) |
+| PASS | Analyst | Nueva ficha de cliente | El formulario de alta de cliente carga completo y con estilos. | [captura](screenshots/analyst-client-form.png) |
+| FAIL | General | Ejecución QA visual | locator.fill: Timeout 30000ms exceeded.
+Call log:
+[2m  - waiting for getByLabel(/Dirección/i)[22m
+ | - |
+| PASS | General | Limpieza QA | Se conservaron los datos temporales para inspeccionar el fallo encontrado. | - |
+
+## Artefactos
+
+- Capturas: `./screenshots`
+- Descargas: `./downloads`
+
+## Datos temporales
+
+- Cliente: n/a
+- Solicitud: n/a
+- Préstamo: n/a
+- Pago: n/a
+- Promesa: n/a
+- Gestión: n/a
+- Viewer temporal: 63d31e55-2e60-4e0c-ad15-eb01c19d6e02
