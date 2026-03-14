@@ -121,23 +121,23 @@ export const RateLimitConfigs = {
     blockDurationMs: 30 * 60 * 1000, // 30 minutos
   },
 
-  // API general: 100 requests por minuto
+  // API general: 200 requests por minuto
   API_GENERAL: {
-    maxAttempts: 100,
+    maxAttempts: 200,
     windowMs: 60 * 1000, // 1 minuto
   },
 
-  // Creación de recursos: 20 por hora
+  // Creación de recursos: 100 por hora (aumentado para desarrollo)
   CREATE_RESOURCE: {
-    maxAttempts: 20,
+    maxAttempts: 100,
     windowMs: 60 * 60 * 1000, // 1 hora
   },
 
-  // Exportación: 10 por hora
+  // Exportación: 30 por hora (aumentado)
   EXPORT: {
-    maxAttempts: 10,
+    maxAttempts: 30,
     windowMs: 60 * 60 * 1000, // 1 hora
-    blockDurationMs: 10 * 60 * 1000, // 10 minutos
+    blockDurationMs: 5 * 60 * 1000, // 5 minutos (reducido de 10)
   },
 
   // Emails/SMS: 5 por hora
