@@ -9,13 +9,13 @@ import { decryptSafe } from '@/lib/security/encryption'
 
 export default async function PrestamosPage() {
   const session = await auth()
-  const loans = await LoanService.getAll()
+  const loansResult = await LoanService.getAll()
   const canCreateLoan =
     session?.user?.role ? hasPermission(session.user.role, 'LOANS_CREATE') : false
   const canRegisterPayment =
     session?.user?.role ? hasPermission(session.user.role, 'PAYMENTS_REGISTER') : false
 
-  const serializedLoans = loans.map(loan => ({
+  const serializedLoans = loansResult.data.map(loan => ({
     id: loan.id,
     loanNumber: loan.loanNumber,
     status: loan.status,

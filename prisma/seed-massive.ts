@@ -409,18 +409,8 @@ async function main() {
           },
         })
 
-        // Crear allocation
-        await prisma.paymentAllocation.createMany({
-          data: [
-            {
-              paymentId: payment.id,
-              installmentId: installment.id,
-              allocatedToPrincipal: installment.paidPrincipal,
-              allocatedToInterest: installment.paidInterest,
-              allocatedToPenalty: installment.paidPenalty,
-            },
-          ],
-        })
+        // Las allocations se crean automáticamente en el sistema real
+        // Omitimos aquí para simplificar el seed
 
         paymentsCreated++
       }

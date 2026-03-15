@@ -270,6 +270,7 @@ export class ClientService {
         select: {
           firstName: true,
           lastName: true,
+          taxId: true,
           dateOfBirth: true,
           occupation: true,
         },
@@ -277,6 +278,7 @@ export class ClientService {
       businessProfile: {
         select: {
           businessName: true,
+          taxId: true,
           industry: true,
         },
       },
