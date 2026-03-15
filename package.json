@@ -21,7 +21,7 @@
     "db:seed": "tsx prisma/seed.ts",
     "security:generate": "./scripts/generate-secrets.sh",
     "security:validate-env": "tsx scripts/validate-env.ts",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate && prisma migrate deploy"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

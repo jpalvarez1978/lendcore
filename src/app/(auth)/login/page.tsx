@@ -1,21 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect, Suspense } from 'react'
 import { signIn } from 'next-auth/react'
-import { useRouter } from 'next/navigation'
-import { ArrowRight, ChartNoAxesCombined, ShieldCheck, Wallet } from 'lucide-react'
+import { useRouter, useSearchParams } from 'next/navigation'
+import { ArrowRight, ChartNoAxesCombined, ShieldCheck, Wallet, Clock, Loader2 } from 'lucide-react'
 import { BrandMark } from '@/components/brand/BrandMark'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { BRAND } from '@/lib/constants/brand'
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showTimeoutMessage, setShowTimeoutMessage] = useState(false)
+
+  useEffect(() => {
+    // Verificar si la sesión expiró por timeout
+    const timeout = searchParams.get('timeout')
+    if (timeout === 'true') {
+      setShowTimeoutMessage(true)
+      // Limpiar el mensaje después de 10 segundos
+      const timer = setTimeout(() => setShowTimeoutMessage(false), 10000)
+      return () => clearTimeout(timer)
+    }
+  }, [searchParams])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -31,13 +44,14 @@ export default function LoginPage() {
 
       if (result?.error) {
         setError('Credenciales inválidas')
+        setLoading(false)
       } else {
+        // Mantener el estado de loading mientras redirige
         router.push('/dashboard')
         router.refresh()
       }
     } catch {
       setError('Error al iniciar sesión')
-    } finally {
       setLoading(false)
     }
   }
@@ -125,6 +139,23 @@ export default function LoginPage() {
             </CardHeader>
 
             <CardContent className="px-7 pb-7 pt-6 sm:px-8 sm:pb-8">
+              {showTimeoutMessage && (
+                <div className="mb-5 rounded-2xl border border-yellow-200 bg-yellow-50 p-4">
+                  <div className="flex gap-3">
+                    <Clock className="h-5 w-5 flex-shrink-0 text-yellow-600" />
+                    <div>
+                      <p className="font-semibold text-yellow-900">
+                        Sesión expirada por inactividad
+                      </p>
+                      <p className="mt-1 text-sm text-yellow-700">
+                        Por seguridad, tu sesión se cerró después de 30 minutos de inactividad.
+                        Por favor, inicia sesión nuevamente.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="space-y-5">
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-semibold text-foreground">
@@ -166,8 +197,17 @@ export default function LoginPage() {
                   className="h-12 w-full rounded-2xl bg-[linear-gradient(135deg,#14263f_0%,#1f3a5c_72%,#a97b36_100%)] text-base font-semibold text-white shadow-[0_20px_38px_-18px_rgba(20,38,63,0.75)] transition-transform hover:-translate-y-0.5 hover:shadow-[0_22px_42px_-18px_rgba(20,38,63,0.78)]"
                   disabled={loading}
                 >
-                  {loading ? 'Ingresando...' : 'Entrar al panel'}
-                  {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
+                  {loading ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Ingresando al sistema...
+                    </>
+                  ) : (
+                    <>
+                      Entrar al panel
+                      <ArrowRight className="ml-2 h-4 w-4" />
+                    </>
+                  )}
                 </Button>
               </form>
 
@@ -182,5 +222,13 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando...</div>}>
+      <LoginForm />
+    </Suspense>
   )
 }

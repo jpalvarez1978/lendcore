@@ -88,11 +88,18 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     }),
   ],
   callbacks: {
-    async jwt({ token, user }) {
+    async jwt({ token, user, trigger }) {
       if (user) {
         token.id = user.id
         token.role = user.role as UserRole
+        token.iat = Math.floor(Date.now() / 1000) // Issue time
       }
+
+      // Actualizar timestamp en cada request para renovar sesión con actividad
+      if (trigger === 'update') {
+        token.iat = Math.floor(Date.now() / 1000)
+      }
+
       return token
     },
     async session({ session, token }) {
@@ -108,6 +115,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
+    maxAge: 30 * 60, // 30 minutos de sesión máxima
+    updateAge: 5 * 60, // Actualizar sesión cada 5 minutos si hay actividad
   },
   secret: process.env.NEXTAUTH_SECRET,
 })

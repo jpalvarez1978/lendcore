@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Plus_Jakarta_Sans } from 'next/font/google'
 import './globals.css'
 import { SessionProvider } from '@/components/providers/SessionProvider'
+import { Toaster } from '@/components/ui/toaster'
 import { APP_CONFIG } from '@/lib/constants/config'
 
 const plusJakartaSans = Plus_Jakarta_Sans({
@@ -29,6 +30,7 @@ export default function RootLayout({
         <SessionProvider>
           {children}
         </SessionProvider>
+        <Toaster />
       </body>
     </html>
   )
