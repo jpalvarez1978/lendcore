@@ -64,17 +64,15 @@ export async function GET(request: NextRequest) {
     const results: SearchResult[] = []
     const queryLower = query.toLowerCase()
 
-    // Búsqueda paralela optimizada - límite de 30 registros más recientes
+    // OPTIMIZACIÓN AGRESIVA: Solo 15 registros, procesamiento ultra-rápido
     const [clients, loans] = await Promise.all([
       canViewClients
         ? prisma.client.findMany({
-            take: 30,
+            take: 15, // Reducido de 30 a 15
             select: {
               id: true,
               type: true,
-              email: true,
-              phone: true,
-              city: true,
+              phone: true, // Solo phone para búsqueda (menos desencriptación)
               individualProfile: {
                 select: {
                   firstName: true,
@@ -94,7 +92,7 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
       canViewLoans
         ? prisma.loan.findMany({
-            take: 30,
+            take: 15, // Reducido de 30 a 15
             select: {
               id: true,
               loanNumber: true,
@@ -125,29 +123,15 @@ export async function GET(request: NextRequest) {
 
     const dbTime = Date.now() - startTime
 
-    // Procesar clientes - filtrado rápido en memoria
-    clients
-      .filter(client => {
-        const name = getClientName(client).toLowerCase()
-        const email = decryptSafe(client.email).toLowerCase()
-        const phone = decryptSafe(client.phone).toLowerCase()
-        const taxId = (client.type === 'INDIVIDUAL'
-          ? decryptSafe(client.individualProfile?.taxId)
-          : decryptSafe(client.businessProfile?.taxId)).toLowerCase()
-        const city = (client.city || '').toLowerCase()
+    // Procesar clientes - ULTRA OPTIMIZADO
+    let clientMatches = 0
+    for (const client of clients) {
+      if (clientMatches >= 6) break // Máximo 6 clientes
 
-        // Búsqueda rápida: verificar cada campo individualmente
-        return (
-          name.includes(queryLower) ||
-          email.includes(queryLower) ||
-          phone.includes(queryLower) ||
-          taxId.includes(queryLower) ||
-          city.includes(queryLower)
-        )
-      })
-      .slice(0, 10)
-      .forEach(client => {
-        const name = getClientName(client)
+      const name = getClientName(client).toLowerCase()
+
+      // Early exit: verificar nombre primero (más común)
+      if (name.includes(queryLower)) {
         const phone = decryptSafe(client.phone)
         const taxId = client.type === 'INDIVIDUAL'
           ? decryptSafe(client.individualProfile?.taxId)
@@ -156,51 +140,66 @@ export async function GET(request: NextRequest) {
         results.push({
           id: client.id,
           type: 'client',
-          title: name || 'Cliente',
+          title: getClientName(client),
           subtitle: [taxId, phone].filter(Boolean).join(' • ') || 'Sin identificador',
           url: `/dashboard/clientes/${client.id}`,
           metadata: client.type === 'INDIVIDUAL' ? 'Persona Física' : 'Empresa',
         })
-      })
+        clientMatches++
+        continue
+      }
 
-    // Procesar préstamos - filtrar por nombre de cliente Y número de préstamo
-    loans
-      .filter(loan => {
-        const loanNumber = loan.loanNumber.toLowerCase()
-        const clientName = getClientName(loan.client).toLowerCase()
-        const status = loan.status.toLowerCase()
+      // Si no matchea nombre, verificar phone y taxId
+      const phone = decryptSafe(client.phone).toLowerCase()
+      const taxId = (client.type === 'INDIVIDUAL'
+        ? decryptSafe(client.individualProfile?.taxId)
+        : decryptSafe(client.businessProfile?.taxId)).toLowerCase()
 
-        // Buscar en número de préstamo, nombre de cliente, o estado
-        return (
-          loanNumber.includes(queryLower) ||
-          clientName.includes(queryLower) ||
-          status.includes(queryLower)
-        )
-      })
-      .slice(0, 10)
-      .forEach(loan => {
-        const clientName = getClientName(loan.client)
+      if (phone.includes(queryLower) || taxId.includes(queryLower)) {
+        results.push({
+          id: client.id,
+          type: 'client',
+          title: getClientName(client),
+          subtitle: [taxId, phone].filter(Boolean).join(' • ') || 'Sin identificador',
+          url: `/dashboard/clientes/${client.id}`,
+          metadata: client.type === 'INDIVIDUAL' ? 'Persona Física' : 'Empresa',
+        })
+        clientMatches++
+      }
+    }
 
+    // Procesar préstamos - ULTRA OPTIMIZADO
+    let loanMatches = 0
+    for (const loan of loans) {
+      if (loanMatches >= 6) break // Máximo 6 préstamos
+
+      const loanNumber = loan.loanNumber.toLowerCase()
+      const clientName = getClientName(loan.client).toLowerCase()
+
+      // Verificar loan number primero (más específico)
+      if (loanNumber.includes(queryLower) || clientName.includes(queryLower)) {
         results.push({
           id: loan.id,
           type: 'loan',
           title: `Préstamo ${loan.loanNumber}`,
-          subtitle: clientName || 'Cliente',
+          subtitle: getClientName(loan.client) || 'Cliente',
           url: `/dashboard/prestamos/${loan.id}`,
           metadata: `${currencyFormatter.format(Number(loan.principalAmount))} • ${loan.status}`,
         })
-      })
+        loanMatches++
+      }
+    }
 
     const elapsed = Date.now() - startTime
     const processingTime = elapsed - dbTime
 
     console.log(
-      `[Search] Query: "${query}" | Clients: ${clients.length} | Loans: ${loans.length} | ` +
-      `Results: ${results.length} | DB: ${dbTime}ms | Processing: ${processingTime}ms | Total: ${elapsed}ms`
+      `[Search FAST] "${query}" | DB: ${dbTime}ms | Process: ${processingTime}ms | ` +
+      `Total: ${elapsed}ms | Results: ${results.length}`
     )
 
     return NextResponse.json({
-      results: results.slice(0, 20),
+      results,
       _meta: {
         elapsed,
         dbTime,
