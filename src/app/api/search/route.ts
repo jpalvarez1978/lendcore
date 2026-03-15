@@ -62,13 +62,13 @@ export async function GET(request: NextRequest) {
     }
 
     const results: SearchResult[] = []
+    const queryLower = query.toLowerCase()
 
-    // OPTIMIZACIÓN: Solo buscar en clientes y préstamos (los más comunes)
-    // Búsqueda paralela ultra-rápida con límite de 20 registros
+    // Búsqueda paralela optimizada - límite de 30 registros más recientes
     const [clients, loans] = await Promise.all([
       canViewClients
         ? prisma.client.findMany({
-            take: 20,
+            take: 30,
             select: {
               id: true,
               type: true,
@@ -94,13 +94,7 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
       canViewLoans
         ? prisma.loan.findMany({
-            take: 20,
-            where: {
-              loanNumber: {
-                contains: query,
-                mode: 'insensitive',
-              },
-            },
+            take: 30,
             select: {
               id: true,
               loanNumber: true,
@@ -129,21 +123,29 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
     ])
 
-    // Procesar clientes (filtrado en memoria solo para campos encriptados)
-    const queryLower = query.toLowerCase()
+    const dbTime = Date.now() - startTime
+
+    // Procesar clientes - filtrado rápido en memoria
     clients
       .filter(client => {
-        const name = getClientName(client)
-        const email = decryptSafe(client.email)
-        const phone = decryptSafe(client.phone)
-        const taxId = client.type === 'INDIVIDUAL'
+        const name = getClientName(client).toLowerCase()
+        const email = decryptSafe(client.email).toLowerCase()
+        const phone = decryptSafe(client.phone).toLowerCase()
+        const taxId = (client.type === 'INDIVIDUAL'
           ? decryptSafe(client.individualProfile?.taxId)
-          : decryptSafe(client.businessProfile?.taxId)
+          : decryptSafe(client.businessProfile?.taxId)).toLowerCase()
+        const city = (client.city || '').toLowerCase()
 
-        const searchText = `${name} ${taxId} ${email} ${phone} ${client.city || ''}`.toLowerCase()
-        return searchText.includes(queryLower)
+        // Búsqueda rápida: verificar cada campo individualmente
+        return (
+          name.includes(queryLower) ||
+          email.includes(queryLower) ||
+          phone.includes(queryLower) ||
+          taxId.includes(queryLower) ||
+          city.includes(queryLower)
+        )
       })
-      .slice(0, 8)
+      .slice(0, 10)
       .forEach(client => {
         const name = getClientName(client)
         const phone = decryptSafe(client.phone)
@@ -161,29 +163,50 @@ export async function GET(request: NextRequest) {
         })
       })
 
-    // Procesar préstamos (ya filtrados por BD)
-    loans.slice(0, 8).forEach(loan => {
-      const clientName = getClientName(loan.client)
+    // Procesar préstamos - filtrar por nombre de cliente Y número de préstamo
+    loans
+      .filter(loan => {
+        const loanNumber = loan.loanNumber.toLowerCase()
+        const clientName = getClientName(loan.client).toLowerCase()
+        const status = loan.status.toLowerCase()
 
-      results.push({
-        id: loan.id,
-        type: 'loan',
-        title: `Préstamo ${loan.loanNumber}`,
-        subtitle: clientName || 'Cliente',
-        url: `/dashboard/prestamos/${loan.id}`,
-        metadata: `${currencyFormatter.format(Number(loan.principalAmount))} • ${loan.status}`,
+        // Buscar en número de préstamo, nombre de cliente, o estado
+        return (
+          loanNumber.includes(queryLower) ||
+          clientName.includes(queryLower) ||
+          status.includes(queryLower)
+        )
       })
-    })
+      .slice(0, 10)
+      .forEach(loan => {
+        const clientName = getClientName(loan.client)
+
+        results.push({
+          id: loan.id,
+          type: 'loan',
+          title: `Préstamo ${loan.loanNumber}`,
+          subtitle: clientName || 'Cliente',
+          url: `/dashboard/prestamos/${loan.id}`,
+          metadata: `${currencyFormatter.format(Number(loan.principalAmount))} • ${loan.status}`,
+        })
+      })
 
     const elapsed = Date.now() - startTime
-    console.log(`[Search] Query: "${query}" | Results: ${results.length} | Time: ${elapsed}ms`)
+    const processingTime = elapsed - dbTime
+
+    console.log(
+      `[Search] Query: "${query}" | Clients: ${clients.length} | Loans: ${loans.length} | ` +
+      `Results: ${results.length} | DB: ${dbTime}ms | Processing: ${processingTime}ms | Total: ${elapsed}ms`
+    )
 
     return NextResponse.json({
-      results: results.slice(0, 16),
+      results: results.slice(0, 20),
       _meta: {
         elapsed,
-        count: results.length
-      }
+        dbTime,
+        processingTime,
+        count: results.length,
+      },
     })
   } catch (error) {
     const elapsed = Date.now() - startTime
