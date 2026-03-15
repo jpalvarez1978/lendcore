@@ -11,6 +11,7 @@
     "build": "next build",
     "start": "next start -p 3001",
     "lint": "next lint",
+    "deploy": "vercel --prod --yes",
     "smoke:real": "tsx scripts/smoke-real-system.ts",
     "validate:roles:flows": "tsx scripts/validate-role-workflows.ts",
     "qa:ui:delivery": "tsx scripts/ui-delivery-qa.ts",
