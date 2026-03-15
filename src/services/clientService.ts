@@ -468,16 +468,20 @@ export class ClientService {
       include: clientProfileInclude,
     })
 
-    // Registrar auditoría
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'CREATE',
-        entityType: 'clients',
-        entityId: client.id,
-        newValue: this.buildClientAuditSnapshot(client),
-      },
-    })
+    // Registrar auditoría (no bloquear si falla)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'CREATE',
+          entityType: 'clients',
+          entityId: client.id,
+          newValue: this.buildClientAuditSnapshot(client),
+        },
+      })
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError)
+    }
 
     return this.sanitizeClient(client)
   }
@@ -578,17 +582,21 @@ export class ClientService {
       include: clientProfileInclude,
     })
 
-    // Registrar auditoría
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'UPDATE',
-        entityType: 'clients',
-        entityId: id,
-        oldValue: this.buildClientAuditSnapshot(existing),
-        newValue: this.buildClientAuditSnapshot(updated),
-      },
-    })
+    // Registrar auditoría (no bloquear si falla)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'UPDATE',
+          entityType: 'clients',
+          entityId: id,
+          oldValue: this.buildClientAuditSnapshot(existing),
+          newValue: this.buildClientAuditSnapshot(updated),
+        },
+      })
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError)
+    }
 
     return this.sanitizeClient(updated)
   }
@@ -605,16 +613,21 @@ export class ClientService {
       data: { status },
     })
 
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'UPDATE_STATUS',
-        entityType: 'clients',
-        entityId: id,
-        oldValue: { status: existing.status },
-        newValue: { status },
-      },
-    })
+    // Registrar auditoría (no bloquear si falla)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'UPDATE_STATUS',
+          entityType: 'clients',
+          entityId: id,
+          oldValue: { status: existing.status },
+          newValue: { status },
+        },
+      })
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError)
+    }
 
     return this.sanitizeClient(updated)
   }
@@ -779,16 +792,20 @@ export class ClientService {
       },
     })
 
-    // Auditoría
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'NOTE_ADDED',
-        entityType: 'clients',
-        entityId: clientId,
-        newValue: { noteId: note.id, content },
-      },
-    })
+    // Auditoría (no bloquear si falla)
+    try {
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'NOTE_ADDED',
+          entityType: 'clients',
+          entityId: clientId,
+          newValue: { noteId: note.id, content },
+        },
+      })
+    } catch (auditError) {
+      console.error('Error creating audit log:', auditError)
+    }
 
     return note
   }
