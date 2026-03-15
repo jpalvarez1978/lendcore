@@ -339,6 +339,23 @@ export class ClientService {
           email: client.email ? '***@ejemplo.es' : null,
           phone: client.phone ? '6***' : '',
           address: client.address ? 'Calle ***' : null,
+          // Desencriptar taxId para combobox
+          individualProfile: client.individualProfile
+            ? {
+                ...client.individualProfile,
+                taxId: client.individualProfile.taxId
+                  ? decryptSafe(client.individualProfile.taxId)
+                  : null,
+              }
+            : null,
+          businessProfile: client.businessProfile
+            ? {
+                ...client.businessProfile,
+                taxId: client.businessProfile.taxId
+                  ? decryptSafe(client.businessProfile.taxId)
+                  : null,
+              }
+            : null,
         })),
         pagination: {
           page,
@@ -367,6 +384,23 @@ export class ClientService {
         email: client.email ? '***@ejemplo.es' : null,
         phone: client.phone ? '6***' : '',
         address: client.address ? 'Calle ***' : null,
+        // Desencriptar taxId para combobox
+        individualProfile: client.individualProfile
+          ? {
+              ...client.individualProfile,
+              taxId: client.individualProfile.taxId
+                ? decryptSafe(client.individualProfile.taxId)
+                : null,
+            }
+          : null,
+        businessProfile: client.businessProfile
+          ? {
+              ...client.businessProfile,
+              taxId: client.businessProfile.taxId
+                ? decryptSafe(client.businessProfile.taxId)
+                : null,
+            }
+          : null,
       })),
       pagination: {
         page,
