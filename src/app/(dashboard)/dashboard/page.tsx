@@ -139,7 +139,7 @@ export default async function DashboardHomePage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8d6730]">
                         Clientes activos
                       </p>
-                      <p className="mt-5 text-[clamp(2.5rem,3.5vw,3.15rem)] font-bold leading-[0.94] tracking-[-0.04em] text-[#14263f]">
+                      <p className="mt-5 break-words text-[clamp(2rem,3.5vw,3.15rem)] font-bold leading-[0.94] tracking-[-0.04em] text-[#14263f]">
                         {totalClients}
                       </p>
                       <p className="mt-3 max-w-[18ch] text-sm leading-6 text-muted-foreground">
@@ -150,11 +150,11 @@ export default async function DashboardHomePage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8d6730]">
                         Exposición activa
                       </p>
-                      <div className="mt-5 flex items-baseline gap-2">
-                        <span className="text-[clamp(2rem,2.9vw,2.65rem)] font-bold leading-[0.94] tracking-[-0.025em] text-[#14263f]">
+                      <div className="mt-5 flex flex-wrap items-baseline gap-1.5 overflow-hidden">
+                        <span className="break-all text-[clamp(1.5rem,2.2vw,2rem)] font-bold leading-[0.94] tracking-[-0.025em] text-[#14263f]">
                           {exposureAmountLabel}
                         </span>
-                        <span className="shrink-0 text-[clamp(1rem,1.25vw,1.35rem)] font-semibold leading-none text-[#14263f]/82">
+                        <span className="shrink-0 text-[clamp(0.875rem,1.1vw,1.15rem)] font-semibold leading-none text-[#14263f]/82">
                           €
                         </span>
                       </div>
@@ -166,7 +166,7 @@ export default async function DashboardHomePage() {
                       <p className="text-xs font-semibold uppercase tracking-[0.26em] text-[#8d6730]">
                         En seguimiento
                       </p>
-                      <p className="mt-5 text-[clamp(2.5rem,3.5vw,3.15rem)] font-bold leading-[0.94] tracking-[-0.04em] text-[#14263f]">
+                      <p className="mt-5 break-words text-[clamp(2rem,3.5vw,3.15rem)] font-bold leading-[0.94] tracking-[-0.04em] text-[#14263f]">
                         {overdueLoans + pendingApplications}
                       </p>
                       <p className="mt-3 max-w-[19ch] text-sm leading-6 text-muted-foreground">
