@@ -170,7 +170,12 @@ export function GlobalSearch() {
         onKeyDown={handleSubmit}
         placeholder="Buscar cliente, préstamo, DNI/CIF o número de operación..."
         className="h-12 rounded-2xl border-white/80 bg-white/80 pl-11 pr-12 shadow-[0_18px_40px_-32px_rgba(20,38,63,0.4)] transition-colors focus-visible:bg-white"
+        role="combobox"
         aria-label="Búsqueda global de clientes, préstamos, pagos y solicitudes"
+        aria-expanded={open}
+        aria-controls="search-results"
+        aria-autocomplete="list"
+        aria-haspopup="listbox"
       />
       {query && (
         <button
@@ -188,7 +193,11 @@ export function GlobalSearch() {
       )}
 
       {open && (
-        <div className="absolute left-0 top-[calc(100%+0.65rem)] z-50 w-full rounded-[1.65rem] border border-white/80 bg-[rgba(255,255,255,0.96)] p-2 shadow-[0_24px_60px_-26px_rgba(20,38,63,0.35)] backdrop-blur-xl">
+        <div
+          id="search-results"
+          role="listbox"
+          className="absolute left-0 top-[calc(100%+0.65rem)] z-50 w-full rounded-[1.65rem] border border-white/80 bg-[rgba(255,255,255,0.96)] p-2 shadow-[0_24px_60px_-26px_rgba(20,38,63,0.35)] backdrop-blur-xl"
+        >
           {query.trim().length < 2 ? (
             <div className="space-y-2 p-2">
               <p className="px-2 pt-1 text-xs font-semibold uppercase tracking-[0.24em] text-[#8d6730]">
@@ -204,6 +213,8 @@ export function GlobalSearch() {
                         key={action.href}
                         type="button"
                         onClick={() => handleSelect(action.href)}
+                        role="option"
+                        aria-label={`${action.label} - Acceso rápido`}
                         className="flex items-center gap-3 rounded-2xl border border-[#e3eaf2] bg-white px-3 py-3 text-left transition-colors hover:bg-[#f8fbff]"
                       >
                         <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-[#14263f] text-[#f1e0b8]">
@@ -247,6 +258,8 @@ export function GlobalSearch() {
                         key={result.id}
                         type="button"
                         onClick={() => handleSelect(result.url)}
+                        role="option"
+                        aria-label={`${result.title} - ${result.subtitle}`}
                         className={cn(
                           'flex w-full items-start gap-3 rounded-[1.2rem] px-3 py-3 text-left transition-colors',
                           'hover:bg-[#f7fafc]'
