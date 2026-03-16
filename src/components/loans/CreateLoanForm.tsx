@@ -288,7 +288,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+    <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
       {/* Mensaje de Error */}
       {submitError && (
         <div className="bg-red-50 border border-red-200 rounded-lg p-4">
@@ -330,9 +330,9 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2 items-start">
+      <div className="grid gap-4 lg:grid-cols-2 items-start">
         {/* Columna izquierda - Formulario */}
-        <div className="space-y-6">
+        <div className="space-y-4">
           {sourceApplication && (
             <Card className="border-[#d7c39a] bg-[linear-gradient(135deg,rgba(249,241,225,0.96),rgba(255,255,255,0.96))]">
               <CardHeader>
@@ -671,7 +671,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
           </Card>
 
           {/* Botones de acción - dentro del formulario izquierdo */}
-          <div className="flex justify-end gap-4 pt-6 border-t">
+          <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => router.back()}>
               Cancelar
             </Button>
@@ -693,7 +693,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
 
         {/* Columna derecha - Preview con sticky mejorado */}
         <div className="lg:relative">
-          <div className="lg:sticky lg:top-6 space-y-4">
+          <div className="lg:sticky lg:top-4 space-y-3">
             <div className="flex items-center justify-between">
               <h3 className="text-lg font-semibold">Vista Previa del Cronograma</h3>
               <Button
@@ -708,7 +708,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
             </div>
 
             {showPreview && (
-              <div className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-1">
+              <div className="max-h-[calc(100vh-10rem)] overflow-y-auto pr-1">
                 <LoanSchedulePreview terms={previewTerms} />
               </div>
             )}

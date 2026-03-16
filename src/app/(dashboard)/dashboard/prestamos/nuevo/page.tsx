@@ -55,9 +55,9 @@ export default async function NuevoPrestamoPage({ searchParams }: NuevoPrestamoP
       : null
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 pb-2">
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <Link href="/dashboard/prestamos">
           <Button variant="ghost" size="sm">
             <ArrowLeft className="h-4 w-4 mr-2" />
