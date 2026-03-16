@@ -91,8 +91,8 @@ export function ConfigurationClient({ parameters }: ConfigurationClientProps) {
                 <div className="flex items-center gap-2 mb-1">
                   <h4 className="font-medium">{param.description || param.key}</h4>
                   {!param.isEditable && (
-                    <Badge variant="secondary" className="text-xs">
-                      No editable
+                    <Badge variant="outline" className="text-xs text-muted-foreground">
+                      Requiere soporte técnico
                     </Badge>
                   )}
                   {!param.isActive && (

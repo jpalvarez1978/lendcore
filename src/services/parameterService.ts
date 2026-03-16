@@ -22,37 +22,44 @@ interface ParameterDefinition {
 }
 
 // Parámetros por defecto del sistema
+// ESTRATEGIA: isEditable=true para parámetros simples que el cliente puede cambiar
+//             isEditable=false para parámetros críticos que requieren soporte técnico
 const DEFAULT_PARAMETERS: ParameterDefinition[] = [
-  // FINANCIERO
+  // ═══════════════════════════════════════════════════════════════
+  // FINANCIERO - Críticos, requieren soporte técnico
+  // ═══════════════════════════════════════════════════════════════
+  {
+    key: 'default_interest_rate_monthly',
+    category: 'FINANCIAL',
+    type: 'DECIMAL',
+    defaultValue: '0.025',
+    description: 'Tasa de interés mensual por defecto',
+    unit: '%',
+    minValue: '0',
+    maxValue: '0.15',
+    isEditable: false, // Requiere soporte técnico
+  },
   {
     key: 'default_penalty_rate_daily',
     category: 'FINANCIAL',
     type: 'DECIMAL',
     defaultValue: '0.001',
-    description: 'Tasa de penalidad diaria por mora (0.001 = 0.1% diario)',
-    unit: 'decimal',
+    description: 'Tasa de penalidad diaria por mora',
+    unit: '%',
     minValue: '0',
     maxValue: '0.01',
+    isEditable: false, // Requiere soporte técnico
   },
   {
     key: 'max_penalty_rate',
     category: 'FINANCIAL',
     type: 'DECIMAL',
     defaultValue: '0.25',
-    description: 'Tope máximo de penalidad sobre el capital (0.25 = 25%)',
-    unit: 'decimal',
+    description: 'Tope máximo de penalidad sobre capital',
+    unit: '%',
     minValue: '0',
     maxValue: '1',
-  },
-  {
-    key: 'default_interest_rate_monthly',
-    category: 'FINANCIAL',
-    type: 'DECIMAL',
-    defaultValue: '0.025',
-    description: 'Tasa de interés mensual por defecto (2.5%)',
-    unit: 'decimal',
-    minValue: '0',
-    maxValue: '0.15',
+    isEditable: false, // Requiere soporte técnico
   },
   {
     key: 'min_loan_amount',
@@ -62,6 +69,7 @@ const DEFAULT_PARAMETERS: ParameterDefinition[] = [
     description: 'Monto mínimo de préstamo',
     unit: 'EUR',
     minValue: '0',
+    isEditable: false, // Requiere soporte técnico
   },
   {
     key: 'max_loan_amount',
@@ -70,18 +78,22 @@ const DEFAULT_PARAMETERS: ParameterDefinition[] = [
     defaultValue: '50000',
     description: 'Monto máximo de préstamo',
     unit: 'EUR',
+    isEditable: false, // Requiere soporte técnico
   },
 
-  // RIESGO
+  // ═══════════════════════════════════════════════════════════════
+  // RIESGO - Algoritmos complejos, requieren soporte técnico
+  // ═══════════════════════════════════════════════════════════════
   {
     key: 'risk_low_score_min',
     category: 'RISK',
     type: 'INTEGER',
     defaultValue: '80',
     description: 'Puntuación mínima para riesgo BAJO',
-    unit: 'score',
+    unit: 'puntos',
     minValue: '0',
     maxValue: '100',
+    isEditable: false, // Algoritmo de riesgo - requiere soporte
   },
   {
     key: 'risk_medium_score_min',
@@ -89,9 +101,10 @@ const DEFAULT_PARAMETERS: ParameterDefinition[] = [
     type: 'INTEGER',
     defaultValue: '50',
     description: 'Puntuación mínima para riesgo MEDIO',
-    unit: 'score',
+    unit: 'puntos',
     minValue: '0',
     maxValue: '100',
+    isEditable: false, // Algoritmo de riesgo - requiere soporte
   },
   {
     key: 'risk_high_score_min',
@@ -99,72 +112,83 @@ const DEFAULT_PARAMETERS: ParameterDefinition[] = [
     type: 'INTEGER',
     defaultValue: '30',
     description: 'Puntuación mínima para riesgo ALTO',
-    unit: 'score',
+    unit: 'puntos',
     minValue: '0',
     maxValue: '100',
+    isEditable: false, // Algoritmo de riesgo - requiere soporte
   },
   {
     key: 'max_active_loans_per_client',
     category: 'RISK',
     type: 'INTEGER',
     defaultValue: '3',
-    description: 'Número máximo de préstamos activos por cliente',
-    unit: 'loans',
+    description: 'Máximo préstamos activos por cliente',
+    unit: 'préstamos',
     minValue: '1',
     maxValue: '10',
+    isEditable: false, // Política de riesgo - requiere soporte
   },
 
-  // COBRANZA
+  // ═══════════════════════════════════════════════════════════════
+  // COBRANZA - Algunos editables para operación diaria
+  // ═══════════════════════════════════════════════════════════════
   {
     key: 'days_before_overdue_alert',
     category: 'COLLECTION',
     type: 'INTEGER',
     defaultValue: '3',
-    description: 'Días antes del vencimiento para enviar alerta',
-    unit: 'days',
-    minValue: '0',
-    maxValue: '30',
+    description: 'Días antes del vencimiento para alerta',
+    unit: 'días',
+    minValue: '1',
+    maxValue: '15',
+    isEditable: true, // ✓ Cliente puede ajustar
   },
   {
     key: 'days_to_first_collection_action',
     category: 'COLLECTION',
     type: 'INTEGER',
     defaultValue: '1',
-    description: 'Días después de vencimiento para iniciar cobranza',
-    unit: 'days',
+    description: 'Días de mora para iniciar gestión',
+    unit: 'días',
     minValue: '0',
-    maxValue: '30',
-  },
-  {
-    key: 'days_to_legal_action',
-    category: 'COLLECTION',
-    type: 'INTEGER',
-    defaultValue: '90',
-    description: 'Días de mora para considerar acción legal',
-    unit: 'days',
-    minValue: '30',
-    maxValue: '365',
+    maxValue: '7',
+    isEditable: true, // ✓ Cliente puede ajustar
   },
   {
     key: 'max_promise_extensions',
     category: 'COLLECTION',
     type: 'INTEGER',
     defaultValue: '3',
-    description: 'Número máximo de promesas de pago por préstamo',
-    unit: 'promises',
+    description: 'Máximo de promesas de pago permitidas',
+    unit: 'promesas',
     minValue: '1',
-    maxValue: '10',
+    maxValue: '5',
+    isEditable: true, // ✓ Cliente puede ajustar
+  },
+  {
+    key: 'days_to_legal_action',
+    category: 'COLLECTION',
+    type: 'INTEGER',
+    defaultValue: '90',
+    description: 'Días de mora para acción legal',
+    unit: 'días',
+    minValue: '30',
+    maxValue: '365',
+    isEditable: false, // Requiere soporte legal
   },
 
-  // NEGOCIO
+  // ═══════════════════════════════════════════════════════════════
+  // NEGOCIO - Reglas de aprobación, requieren soporte técnico
+  // ═══════════════════════════════════════════════════════════════
   {
     key: 'require_approval_above_amount',
     category: 'BUSINESS',
     type: 'DECIMAL',
     defaultValue: '10000',
-    description: 'Monto que requiere aprobación de gerencia',
+    description: 'Monto que requiere aprobación gerencial',
     unit: 'EUR',
     minValue: '0',
+    isEditable: false, // Política de aprobación - requiere soporte
   },
   {
     key: 'auto_approve_returning_clients',
@@ -172,17 +196,30 @@ const DEFAULT_PARAMETERS: ParameterDefinition[] = [
     type: 'BOOLEAN',
     defaultValue: 'true',
     description: 'Auto-aprobar clientes con buen historial',
-    unit: 'boolean',
+    unit: '',
+    isEditable: false, // Política de riesgo - requiere soporte
   },
   {
     key: 'min_payment_rate_for_approval',
     category: 'BUSINESS',
     type: 'DECIMAL',
     defaultValue: '0.90',
-    description: 'Tasa mínima de cumplimiento para auto-aprobación (90%)',
-    unit: 'decimal',
+    description: 'Tasa mínima de cumplimiento para auto-aprobación',
+    unit: '%',
     minValue: '0',
     maxValue: '1',
+    isEditable: false, // Algoritmo de scoring - requiere soporte
+  },
+  {
+    key: 'default_grace_days',
+    category: 'BUSINESS',
+    type: 'INTEGER',
+    defaultValue: '0',
+    description: 'Días de gracia después del vencimiento',
+    unit: 'días',
+    minValue: '0',
+    maxValue: '5',
+    isEditable: true, // ✓ Cliente puede ajustar
   },
 ]
 

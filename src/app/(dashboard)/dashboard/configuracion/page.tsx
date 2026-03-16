@@ -19,6 +19,9 @@ export default async function ConfiguracionPage() {
     )
   }
 
+  // Inicializar parámetros si no existen (primera vez)
+  await ParameterService.initializeDefaults()
+
   // Obtener todos los parámetros
   const allParameters = await ParameterService.listAll()
 
