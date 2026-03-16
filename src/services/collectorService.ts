@@ -144,11 +144,27 @@ export class CollectorService {
 
     const loans = await prisma.loan.findMany({
       where,
-      include: {
+      select: {
+        id: true,
+        loanNumber: true,
+        status: true,
+        totalPending: true,
+        assignedCollectorId: true,
         client: {
-          include: {
-            individualProfile: true,
-            businessProfile: true,
+          select: {
+            id: true,
+            type: true,
+            individualProfile: {
+              select: {
+                firstName: true,
+                lastName: true,
+              },
+            },
+            businessProfile: {
+              select: {
+                businessName: true,
+              },
+            },
           },
         },
         installments: {
@@ -156,6 +172,11 @@ export class CollectorService {
             status: {
               in: ['PENDING', 'OVERDUE', 'PARTIAL'],
             },
+          },
+          select: {
+            id: true,
+            dueDate: true,
+            status: true,
           },
           orderBy: {
             dueDate: 'asc',
