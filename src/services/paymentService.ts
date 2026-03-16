@@ -10,6 +10,7 @@ import {
   getOpenInstallmentStatuses,
   resolveOpenInstallmentStatus,
 } from '@/lib/utils/installmentStatus'
+import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
 import { LoanService } from './loanService'
 
 export interface CreatePaymentData {
@@ -256,7 +257,7 @@ export class PaymentService {
       }
 
       return newPayment
-    })
+    }, TRANSACTION_CONFIG.CRITICAL)
 
     // Recalcular totales del préstamo
     await LoanService.recalculateTotals(data.loanId)
@@ -353,7 +354,7 @@ export class PaymentService {
       })
 
       return newPayment
-    })
+    }, TRANSACTION_CONFIG.CRITICAL)
 
     // Recalcular totales del préstamo
     await LoanService.recalculateTotals(data.loanId)

@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
 
 export interface CreditLimitChangeData {
   clientId: string
@@ -67,7 +68,7 @@ export class CreditLimitService {
       })
 
       return newChange
-    })
+    }, TRANSACTION_CONFIG.STANDARD)
 
     // Auditoría
     await prisma.auditLog.create({

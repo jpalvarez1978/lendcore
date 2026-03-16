@@ -8,6 +8,7 @@ import {
 } from '@prisma/client'
 import { calculateLoanSummary } from '@/lib/calculations/amortization'
 import { getInstallmentComponentBalances } from '@/lib/calculations/allocation'
+import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
 import {
   normalizeInterestRateForInput,
   normalizeInterestRateForStorage,
@@ -399,7 +400,7 @@ export class LoanService {
       }
 
       return newLoan
-    })
+    }, TRANSACTION_CONFIG.CRITICAL)
 
     // Auditoría
     await prisma.auditLog.create({

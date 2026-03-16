@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import type { ParameterCategory, ParameterType } from '@prisma/client'
+import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
 
 /**
  * Servicio de gestión de parámetros configurables del sistema
@@ -306,7 +307,7 @@ export class ParameterService {
           newValue: { value: serializedValue },
         },
       })
-    })
+    }, TRANSACTION_CONFIG.FAST)
 
     return this.getByKey(key)
   }
