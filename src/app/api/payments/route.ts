@@ -6,6 +6,7 @@ import { hasPermission } from '@/lib/constants/permissions'
 import { PaymentMethod } from '@prisma/client'
 import { withAPIRateLimit, withCreateRateLimit } from '@/lib/security/rateLimitMiddleware'
 import { getErrorMessage } from '@/lib/utils/errorMessages'
+import { clampIntegerParam, PAGINATION_LIMITS } from '@/lib/utils/apiParams'
 
 function parsePaidAtValue(value?: string) {
   if (!value) return undefined
@@ -147,9 +148,21 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url)
     const loanId = searchParams.get('loanId')
+    const page = clampIntegerParam(
+      searchParams.get('page'),
+      PAGINATION_LIMITS.DEFAULT_PAGE,
+      PAGINATION_LIMITS.MIN_PAGE,
+      PAGINATION_LIMITS.MAX_PAGE
+    )
+    const pageSize = clampIntegerParam(
+      searchParams.get('pageSize'),
+      PAGINATION_LIMITS.DEFAULT_PAGE_SIZE,
+      PAGINATION_LIMITS.MIN_PAGE_SIZE,
+      PAGINATION_LIMITS.MAX_PAGE_SIZE
+    )
 
     if (loanId) {
-      const payments = await PaymentService.getByLoanId(loanId)
+      const payments = await PaymentService.getByLoanId(loanId, page, pageSize)
       return NextResponse.json(payments)
     }
 

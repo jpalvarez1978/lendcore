@@ -9,6 +9,7 @@ import { ApplicationStatus } from '@prisma/client'
 import { permissionDeniedResponse } from '@/lib/security/apiRouteUtils'
 import { withAPIRateLimit, withCreateRateLimit } from '@/lib/security/rateLimitMiddleware'
 import { getErrorMessage, isZodValidationError } from '@/lib/utils/errorMessages'
+import { clampIntegerParam, PAGINATION_LIMITS } from '@/lib/utils/apiParams'
 
 export async function GET(request: NextRequest) {
   try {
@@ -39,14 +40,26 @@ export async function GET(request: NextRequest) {
         ? (statusParam as ApplicationStatus)
         : undefined
     const clientId = searchParams.get('clientId') || undefined
+    const page = clampIntegerParam(
+      searchParams.get('page'),
+      PAGINATION_LIMITS.DEFAULT_PAGE,
+      PAGINATION_LIMITS.MIN_PAGE,
+      PAGINATION_LIMITS.MAX_PAGE
+    )
+    const pageSize = clampIntegerParam(
+      searchParams.get('pageSize'),
+      PAGINATION_LIMITS.DEFAULT_PAGE_SIZE,
+      PAGINATION_LIMITS.MIN_PAGE_SIZE,
+      PAGINATION_LIMITS.MAX_PAGE_SIZE
+    )
 
     if (statusParam && !status) {
       return NextResponse.json({ error: 'Estado de solicitud inválido' }, { status: 400 })
     }
 
-    const applications = await ApplicationService.getAll({ status, clientId })
+    const result = await ApplicationService.getAll({ status, clientId, page, pageSize })
 
-    return NextResponse.json(applications)
+    return NextResponse.json(result)
   } catch (error: unknown) {
     console.error('Error fetching applications:', error)
     return NextResponse.json(

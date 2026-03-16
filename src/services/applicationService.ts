@@ -18,25 +18,46 @@ export class ApplicationService {
   static async getAll(filters?: {
     status?: ApplicationStatus
     clientId?: string
+    page?: number
+    pageSize?: number
   }) {
+    const page = filters?.page || 1
+    const pageSize = filters?.pageSize || 50
+    const skip = (page - 1) * pageSize
+
     const where: Prisma.CreditApplicationWhereInput = {}
 
     if (filters?.status) where.status = filters.status
     if (filters?.clientId) where.clientId = filters.clientId
 
-    return await prisma.creditApplication.findMany({
-      where,
-      include: {
-        client: {
-          include: {
-            individualProfile: true,
-            businessProfile: true,
+    const [applications, total] = await Promise.all([
+      prisma.creditApplication.findMany({
+        where,
+        include: {
+          client: {
+            include: {
+              individualProfile: true,
+              businessProfile: true,
+            },
           },
+          approver: true,
         },
-        approver: true,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: pageSize,
+      }),
+      prisma.creditApplication.count({ where }),
+    ])
+
+    return {
+      applications,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
       },
-      orderBy: { createdAt: 'desc' },
-    })
+    }
   }
 
   /**

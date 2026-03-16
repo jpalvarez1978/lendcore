@@ -7,6 +7,7 @@ import { hasPermission } from '@/lib/constants/permissions'
 import { LoanStatus } from '@prisma/client'
 import { withCreateRateLimit, withAPIRateLimit } from '@/lib/security/rateLimitMiddleware'
 import { getErrorMessage, isZodValidationError } from '@/lib/utils/errorMessages'
+import { clampIntegerParam, PAGINATION_LIMITS } from '@/lib/utils/apiParams'
 
 export async function GET(request: NextRequest) {
   try {
@@ -29,8 +30,18 @@ export async function GET(request: NextRequest) {
         ? (statusParam as LoanStatus)
         : undefined
     const clientId = searchParams.get('clientId') || undefined
-    const page = parseInt(searchParams.get('page') || '1')
-    const pageSize = parseInt(searchParams.get('pageSize') || '50')
+    const page = clampIntegerParam(
+      searchParams.get('page'),
+      PAGINATION_LIMITS.DEFAULT_PAGE,
+      PAGINATION_LIMITS.MIN_PAGE,
+      PAGINATION_LIMITS.MAX_PAGE
+    )
+    const pageSize = clampIntegerParam(
+      searchParams.get('pageSize'),
+      PAGINATION_LIMITS.DEFAULT_PAGE_SIZE,
+      PAGINATION_LIMITS.MIN_PAGE_SIZE,
+      PAGINATION_LIMITS.MAX_PAGE_SIZE
+    )
 
     if (statusParam && !status) {
       return NextResponse.json({ error: 'Estado de préstamo inválido' }, { status: 400 })

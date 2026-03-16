@@ -377,14 +377,31 @@ export class PaymentService {
   /**
    * Obtener todos los pagos de un préstamo
    */
-  static async getByLoanId(loanId: string) {
-    return await prisma.payment.findMany({
-      where: { loanId },
-      include: {
-        allocations: true,
+  static async getByLoanId(loanId: string, page: number = 1, pageSize: number = 50) {
+    const skip = (page - 1) * pageSize
+
+    const [payments, total] = await Promise.all([
+      prisma.payment.findMany({
+        where: { loanId },
+        include: {
+          allocations: true,
+        },
+        orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
+        skip,
+        take: pageSize,
+      }),
+      prisma.payment.count({ where: { loanId } }),
+    ])
+
+    return {
+      payments,
+      pagination: {
+        page,
+        pageSize,
+        total,
+        totalPages: Math.ceil(total / pageSize),
       },
-      orderBy: [{ paidAt: 'desc' }, { createdAt: 'desc' }],
-    })
+    }
   }
 
   /**

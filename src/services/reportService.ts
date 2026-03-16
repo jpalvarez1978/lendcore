@@ -323,6 +323,7 @@ export class ReportService {
 
   /**
    * Generar reporte de cobranza
+   * OPTIMIZADO: Usa aggregation en lugar de N+1 queries
    */
   static async getCollectionReport(): Promise<CollectionReportData> {
     const currentDate = new Date()
@@ -346,44 +347,53 @@ export class ReportService {
       },
     })
 
-    const byCollector = await Promise.all(
-      collectors.map(async collector => {
-        const assignedCases = collector.assignedCollectionActions.filter(action =>
-          ['PENDING', 'IN_PROGRESS'].includes(action.status)
-        ).length
+    // ✅ OPTIMIZACIÓN: Una sola query para todos los pagos del mes
+    const monthStart = startOfMonth(currentDate)
+    const paymentsByCollector = await prisma.payment.groupBy({
+      by: ['processedById'],
+      where: {
+        paidAt: { gte: monthStart },
+        processedById: { not: null },
+      },
+      _sum: { amount: true },
+      _count: true,
+    })
 
-        // Calcular monto cobrado por este cobrador
-        const collectedPayments = await prisma.payment.findMany({
-          where: {
-            processedById: collector.id,
-            paidAt: {
-              gte: startOfMonth(currentDate),
-            },
-          },
-        })
-
-        const collectedAmount = collectedPayments.reduce(
-          (sum, p) => sum + Number(p.amount),
-          0
-        )
-
-        const totalManagedCases = collector.assignedCollectionActions.length
-        const successRate =
-          totalManagedCases > 0
-            ? (collector.assignedCollectionActions.filter(a => a.status === 'COMPLETED').length /
-                totalManagedCases) *
-              100
-            : 0
-
-        return {
-          collectorId: collector.id,
-          collectorName: collector.name,
-          assignedCases,
-          collectedAmount,
-          successRate,
-        }
-      })
+    // Crear mapa para lookup O(1)
+    const paymentsMap = new Map(
+      paymentsByCollector.map(p => [
+        p.processedById!,
+        {
+          amount: Number(p._sum.amount || 0),
+          count: p._count,
+        },
+      ])
     )
+
+    // Mapear datos sin queries adicionales
+    const byCollector = collectors.map(collector => {
+      const assignedCases = collector.assignedCollectionActions.filter(action =>
+        ['PENDING', 'IN_PROGRESS'].includes(action.status)
+      ).length
+
+      const collectedAmount = paymentsMap.get(collector.id)?.amount || 0
+
+      const totalManagedCases = collector.assignedCollectionActions.length
+      const successRate =
+        totalManagedCases > 0
+          ? (collector.assignedCollectionActions.filter(a => a.status === 'COMPLETED').length /
+              totalManagedCases) *
+            100
+          : 0
+
+      return {
+        collectorId: collector.id,
+        collectorName: collector.name,
+        assignedCases,
+        collectedAmount,
+        successRate,
+      }
+    })
 
     const byAging = await this.getAgingReport()
 
@@ -397,6 +407,7 @@ export class ReportService {
 
   /**
    * Generar reporte de desempeño de analistas
+   * OPTIMIZADO: Fetch all data first, then process in memory
    */
   static async getAnalystPerformance(
     startDate?: Date,
@@ -415,70 +426,98 @@ export class ReportService {
       where: { role: 'ANALYST' },
     })
 
-    return await Promise.all(
-      analysts.map(async analyst => {
-        // Préstamos procesados
-        const loansProcessed = await prisma.loan.count({
-          where: {
-            ...dateFilter,
-            createdBy: analyst.id,
-          },
-        })
+    // ✅ OPTIMIZACIÓN: Fetch all loans and applications at once
+    const [allLoans, allApplications] = await Promise.all([
+      prisma.loan.findMany({
+        where: {
+          ...dateFilter,
+          createdBy: { in: analysts.map(a => a.id) },
+        },
+        select: {
+          id: true,
+          createdBy: true,
+          principalAmount: true,
+          status: true,
+        },
+      }),
+      prisma.creditApplication.findMany({
+        where: {
+          ...dateFilter,
+          approvedBy: { in: analysts.map(a => a.id) },
+        },
+        select: {
+          id: true,
+          approvedBy: true,
+          status: true,
+          createdAt: true,
+          reviewedAt: true,
+        },
+      }),
+    ])
 
-        const loans = await prisma.loan.findMany({
-          where: {
-            ...dateFilter,
-            createdBy: analyst.id,
-          },
-        })
+    // Group by analyst for O(1) lookup
+    const loansByAnalyst = new Map<string, typeof allLoans>()
+    const applicationsByAnalyst = new Map<string, typeof allApplications>()
 
-        const applicationsProcessed = await prisma.creditApplication.findMany({
-          where: {
-            ...dateFilter,
-            approvedBy: analyst.id,
-          },
-        })
+    allLoans.forEach(loan => {
+      if (!loan.createdBy) return
+      if (!loansByAnalyst.has(loan.createdBy)) {
+        loansByAnalyst.set(loan.createdBy, [])
+      }
+      loansByAnalyst.get(loan.createdBy)!.push(loan)
+    })
 
-        const totalDisbursed = loans.reduce(
-          (sum, loan) => sum + Number(loan.principalAmount),
-          0
-        )
+    allApplications.forEach(app => {
+      if (!app.approvedBy) return
+      if (!applicationsByAnalyst.has(app.approvedBy)) {
+        applicationsByAnalyst.set(app.approvedBy, [])
+      }
+      applicationsByAnalyst.get(app.approvedBy)!.push(app)
+    })
 
-        const averageProcessingTime =
-          applicationsProcessed.length > 0
-            ? applicationsProcessed.reduce((sum, app) => {
-                const processingTime =
-                  app.reviewedAt && app.createdAt
-                    ? (app.reviewedAt.getTime() - app.createdAt.getTime()) /
-                      (1000 * 60 * 60 * 24)
-                    : 0
-                return sum + processingTime
-              }, 0) / applicationsProcessed.length
-            : 0
+    // Process in memory - no more DB queries
+    return analysts.map(analyst => {
+      const loans = loansByAnalyst.get(analyst.id) || []
+      const applications = applicationsByAnalyst.get(analyst.id) || []
 
-        // Tasa de aprobación
-        const totalApplications = applicationsProcessed.length
-        const approvedApplications = applicationsProcessed.filter(
-          app => app.status === 'APPROVED'
-        ).length
-        const approvalRate =
-          totalApplications > 0 ? (approvedApplications / totalApplications) * 100 : 0
+      const loansProcessed = loans.length
+      const totalDisbursed = loans.reduce(
+        (sum, loan) => sum + Number(loan.principalAmount),
+        0
+      )
 
-        // Tasa de mora
-        const defaultedLoans = loans.filter(l => l.status === 'DEFAULTED').length
-        const defaultRate = loansProcessed > 0 ? (defaultedLoans / loansProcessed) * 100 : 0
+      const averageProcessingTime =
+        applications.length > 0
+          ? applications.reduce((sum, app) => {
+              const processingTime =
+                app.reviewedAt && app.createdAt
+                  ? (app.reviewedAt.getTime() - app.createdAt.getTime()) /
+                    (1000 * 60 * 60 * 24)
+                  : 0
+              return sum + processingTime
+            }, 0) / applications.length
+          : 0
 
-        return {
-          analystId: analyst.id,
-          analystName: analyst.name,
-          loansProcessed,
-          totalDisbursed,
-          averageProcessingTime,
-          approvalRate,
-          defaultRate,
-        }
-      })
-    )
+      const totalApplications = applications.length
+      const approvedApplications = applications.filter(
+        app => app.status === 'APPROVED'
+      ).length
+      const approvalRate =
+        totalApplications > 0 ? (approvedApplications / totalApplications) * 100 : 0
+
+      const defaultedLoans = loans.filter(l => l.status === 'DEFAULTED').length
+      const defaultRate = loansProcessed > 0 ? (defaultedLoans / loansProcessed) * 100 : 0
+
+      return {
+        analystId: analyst.id,
+        analystName: analyst.name,
+        loansProcessed,
+        totalDisbursed,
+        averageProcessingTime,
+        approvalRate,
+        defaultRate,
+      }
+    })
   }
 
   /**
