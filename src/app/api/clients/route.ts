@@ -13,6 +13,7 @@ import {
   isZodValidationError,
 } from '@/lib/utils/errorMessages'
 import { clampIntegerParam, PAGINATION_LIMITS } from '@/lib/utils/apiParams'
+import { logServerError } from '@/lib/utils/errorLogger'
 
 export async function GET(request: NextRequest) {
   try {
@@ -85,6 +86,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json(result)
   } catch (error: unknown) {
     console.error('Error fetching clients:', error)
+
+    // Enhanced error logging with context
+    logServerError(error, 'DATABASE_ERROR', {
+      endpoint: '/api/clients',
+      method: 'GET',
+      userId: session?.user?.id,
+      params: { type, status, riskLevel, search, page, pageSize },
+    })
 
     if (error instanceof AppError) {
       return NextResponse.json({ error: error.message }, { status: 400 })
