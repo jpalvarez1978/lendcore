@@ -330,7 +330,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
         </div>
       )}
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6 lg:grid-cols-2 items-start">
         {/* Columna izquierda - Formulario */}
         <div className="space-y-6">
           {sourceApplication && (
@@ -669,47 +669,51 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
               </div>
             </CardContent>
           </Card>
-        </div>
 
-        {/* Columna derecha - Preview */}
-        <div className="space-y-6 lg:sticky lg:top-6 lg:self-start">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg font-semibold">Vista Previa del Cronograma</h3>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => setShowPreview(!showPreview)}
-            >
-              <Eye className="h-4 w-4 mr-2" />
-              {showPreview ? 'Ocultar' : 'Mostrar'}
+          {/* Botones de acción - dentro del formulario izquierdo */}
+          <div className="flex justify-end gap-4 pt-6 border-t">
+            <Button type="button" variant="outline" onClick={() => router.back()}>
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={submitting}>
+              {submitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Creando...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Crear Préstamo
+                </>
+              )}
             </Button>
           </div>
-
-          {showPreview && (
-            <LoanSchedulePreview terms={previewTerms} />
-          )}
         </div>
-      </div>
 
-      {/* Botones de acción */}
-      <div className="flex justify-end gap-4 pt-6 border-t">
-        <Button type="button" variant="outline" onClick={() => router.back()}>
-          Cancelar
-        </Button>
-        <Button type="submit" disabled={submitting}>
-          {submitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              Creando...
-            </>
-          ) : (
-            <>
-              <Save className="mr-2 h-4 w-4" />
-              Crear Préstamo
-            </>
-          )}
-        </Button>
+        {/* Columna derecha - Preview con sticky mejorado */}
+        <div className="lg:relative">
+          <div className="lg:sticky lg:top-6 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-lg font-semibold">Vista Previa del Cronograma</h3>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPreview(!showPreview)}
+              >
+                <Eye className="h-4 w-4 mr-2" />
+                {showPreview ? 'Ocultar' : 'Mostrar'}
+              </Button>
+            </div>
+
+            {showPreview && (
+              <div className="max-h-[calc(100vh-8rem)] overflow-y-auto pr-1">
+                <LoanSchedulePreview terms={previewTerms} />
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* Modal de éxito */}
