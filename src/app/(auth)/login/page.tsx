@@ -113,7 +113,7 @@ function LoginForm() {
               </div>
             </div>
 
-            <div className="rounded-[1.5rem] border border-white/10 bg-white/5 p-5 text-sm leading-6 text-slate-300">
+            <div className="mt-8 rounded-[1.5rem] border border-white/10 bg-white/5 p-5 text-sm leading-6 text-slate-300">
               El acceso de esta versión está reservado al equipo interno. La siguiente fase la
               dejaremos lista para apertura controlada hacia clientes y terceros.
             </div>
