@@ -38,9 +38,9 @@ const createLoanSchema = z.object({
   termMonths: z.number().int().positive('El plazo debe ser al menos 1 mes'),
   paymentFrequency: z.enum(['WEEKLY', 'BIWEEKLY', 'MONTHLY', 'QUARTERLY']),
   firstDueDate: z.date(),
-  allowSaturdayPayments: z.boolean().default(true),
-  allowSundayPayments: z.boolean().default(true),
-  hasGuarantor: z.boolean().default(false),
+  allowSaturdayPayments: z.boolean(),
+  allowSundayPayments: z.boolean(),
+  hasGuarantor: z.boolean(),
   guarantorName: z.string().optional(),
   guarantorTaxId: z.string().optional(),
   guarantorPhone: z.string().optional(),
@@ -48,7 +48,7 @@ const createLoanSchema = z.object({
   collateralNotes: z.string().optional(),
   notes: z.string().optional(),
   clientInstructions: z.string().optional(),
-  sendEmailOnCreate: z.boolean().default(true),
+  sendEmailOnCreate: z.boolean(),
 })
 
 type CreateLoanFormData = z.infer<typeof createLoanSchema>

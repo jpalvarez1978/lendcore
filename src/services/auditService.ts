@@ -164,7 +164,7 @@ export class AuditService {
     ])
 
     // Obtener nombres de usuarios más activos
-    const topUserIds = userCounts.map(u => u.userId)
+    const topUserIds = userCounts.map(u => u.userId).filter((id): id is string => id !== null)
     const users = await prisma.user.findMany({
       where: {
         id: {
@@ -219,8 +219,8 @@ export class AuditService {
         action,
         entityType,
         entityId,
-        oldValue: oldValue || null,
-        newValue: newValue || null,
+        oldValue: oldValue ?? Prisma.JsonNull,
+        newValue: newValue ?? Prisma.JsonNull,
       },
     })
   }
@@ -243,8 +243,8 @@ export class AuditService {
           action,
           entityType,
           entityId,
-          oldValue: oldValue || null,
-          newValue: newValue || null,
+          oldValue: oldValue ?? Prisma.JsonNull,
+          newValue: newValue ?? Prisma.JsonNull,
         },
       })
     } catch (error) {
@@ -262,7 +262,7 @@ export class AuditService {
     const headers = ['Fecha', 'Usuario', 'Acción', 'Tipo', 'ID Entidad', 'IP']
     const rows = logs.map(log => [
       log.createdAt.toISOString(),
-      log.user.name,
+      log.user?.name ?? 'Usuario Desconocido',
       log.action,
       log.entityType,
       log.entityId,

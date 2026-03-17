@@ -21,17 +21,22 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { toast } from '@/hooks/use-toast'
-import type { ParameterType } from '@prisma/client'
+import type { ParameterType, ParameterCategory } from '@prisma/client'
 
 interface Parameter {
   id: string
   key: string
   value: string
-  description: string
+  description: string | null
   type: ParameterType
-  unit?: string | null
-  minValue?: string | null
-  maxValue?: string | null
+  category: ParameterCategory
+  unit: string | null
+  minValue: string | null
+  maxValue: string | null
+  isEditable: boolean
+  isActive: boolean
+  lastModifiedAt: Date | null
+  lastModifiedBy: string | null
 }
 
 interface EditParameterModalProps {

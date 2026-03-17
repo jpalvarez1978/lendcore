@@ -127,8 +127,8 @@ export function ClientForm({ initialData, isEditing = false }: ClientFormProps) 
     setError('')
 
     try {
-      const url = isEditing ? `/api/clients/${initialData.id}` : '/api/clients'
-      const method = isEditing ? 'PUT' : 'POST'
+      const url = isEditing && initialData?.id ? `/api/clients/${initialData.id}` : '/api/clients'
+      const method = isEditing && initialData?.id ? 'PUT' : 'POST'
 
       const response = await fetch(url, {
         method,

@@ -450,7 +450,7 @@ export class ClientService {
       data: {
         type: data.type,
         email: data.email ? encryptIfNeeded(data.email) : null,
-        phone: encryptIfNeeded(data.phone),
+        phone: encryptIfNeeded(data.phone) ?? '',
         address: data.address ? encryptIfNeeded(data.address) : null,
         city: data.city,
         postalCode: data.postalCode,
@@ -464,7 +464,7 @@ export class ClientService {
                 create: {
                   firstName: data.individualProfile.firstName,
                   lastName: data.individualProfile.lastName,
-                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)),
+                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? '',
                   dateOfBirth: data.individualProfile.dateOfBirth,
                   occupation: data.individualProfile.occupation,
                   income: data.individualProfile.income,
@@ -485,11 +485,11 @@ export class ClientService {
               businessProfile: {
                 create: {
                   businessName: data.businessProfile.businessName,
-                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)),
+                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? '',
                   legalRepName: data.businessProfile.legalRepName,
                   legalRepTaxId: encryptIfNeeded(
                     this.sanitizeOptionalText(data.businessProfile.legalRepTaxId)
-                  ),
+                  ) ?? '',
                   industry: data.businessProfile.industry,
                   annualRevenue: data.businessProfile.annualRevenue,
                   employeeCount: data.businessProfile.employeeCount,
@@ -554,7 +554,7 @@ export class ClientService {
         type: data.type,
         status: data.status,
         email: data.email !== undefined ? encryptIfNeeded(data.email) : undefined,
-        phone: data.phone !== undefined ? encryptIfNeeded(data.phone) : undefined,
+        phone: data.phone !== undefined ? (encryptIfNeeded(data.phone) ?? '') : undefined,
         address: data.address !== undefined ? encryptIfNeeded(data.address) : undefined,
         city: data.city,
         postalCode: data.postalCode,
@@ -569,7 +569,7 @@ export class ClientService {
                   lastName: data.individualProfile.lastName,
                   taxId:
                     data.individualProfile.taxId !== undefined
-                      ? encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId))
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? '')
                       : undefined,
                   dateOfBirth: data.individualProfile.dateOfBirth,
                   occupation: data.individualProfile.occupation,
@@ -597,12 +597,12 @@ export class ClientService {
                   businessName: data.businessProfile.businessName,
                   taxId:
                     data.businessProfile.taxId !== undefined
-                      ? encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId))
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? '')
                       : undefined,
                   legalRepName: data.businessProfile.legalRepName,
                   legalRepTaxId:
                     data.businessProfile.legalRepTaxId !== undefined
-                      ? encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.legalRepTaxId))
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.legalRepTaxId)) ?? '')
                       : undefined,
                   industry: data.businessProfile.industry,
                   annualRevenue: data.businessProfile.annualRevenue,
@@ -709,7 +709,15 @@ export class ClientService {
    * Obtener actividades del cliente para timeline
    */
   static async getClientActivities(clientId: string) {
-    const activities = []
+    const activities: Array<{
+      id: string
+      type: 'LOAN_CREATED' | 'PAYMENT_RECEIVED' | 'CREDIT_LIMIT_CHANGED' | 'NOTE_ADDED'
+      description: string
+      timestamp: Date
+      userId?: string | null
+      userName?: string | null
+      metadata?: Record<string, number>
+    }> = []
 
     // Préstamos creados
     const loans = await prisma.loan.findMany({

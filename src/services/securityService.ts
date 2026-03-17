@@ -40,7 +40,7 @@ export class SecurityService {
           userAgent: data.userAgent,
           location: data.location,
           description: data.description,
-          metadata: data.metadata,
+          metadata: data.metadata ?? Prisma.JsonNull,
           isBlocked: data.isBlocked || false,
           alertSent: false,
         },

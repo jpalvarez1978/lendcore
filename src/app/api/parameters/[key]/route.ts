@@ -49,9 +49,21 @@ export async function PATCH(
 
     // Obtener parámetro actual
     const currentParam = await ParameterService.getByKey(key)
+    if (!currentParam) {
+      return NextResponse.json(
+        { error: 'Parámetro no encontrado' },
+        { status: 404 }
+      )
+    }
 
     // Actualizar parámetro
     const updated = await ParameterService.update(key, value, session.user.id)
+    if (!updated) {
+      return NextResponse.json(
+        { error: 'Error al actualizar parámetro' },
+        { status: 500 }
+      )
+    }
 
     // Registrar en auditoría
     await AuditService.createLog(

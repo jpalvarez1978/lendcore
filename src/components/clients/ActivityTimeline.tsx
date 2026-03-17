@@ -24,8 +24,8 @@ interface Activity {
   type: ActivityType
   description: string
   timestamp: Date | string
-  userId?: string
-  userName?: string
+  userId?: string | null
+  userName?: string | null
   metadata?: {
     amount?: number
     previousValue?: number | string

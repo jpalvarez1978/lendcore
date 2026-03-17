@@ -6,7 +6,13 @@
  * - Spam de peticiones
  * - Abuso de APIs
  * - DDoS básicos
+ *
+ * Soporta:
+ * - Memoria (desarrollo/single-instance)
+ * - Redis (producción/multi-instance)
  */
+
+import Redis from 'ioredis'
 
 interface RateLimitEntry {
   count: number
@@ -346,6 +352,135 @@ export class RateLimiterMemoryAdapter implements IRateLimiterAdapter {
 }
 
 /**
+ * Adaptador de Redis (producción)
+ * Usado en multi-instance deployments
+ */
+export class RateLimiterRedisAdapter implements IRateLimiterAdapter {
+  private client: Redis
+
+  constructor(redisUrl: string) {
+    this.client = new Redis(redisUrl, {
+      maxRetriesPerRequest: 3,
+      retryStrategy: (times) => {
+        if (times > 3) return null
+        return Math.min(times * 100, 3000)
+      },
+      lazyConnect: true,
+    })
+
+    this.client.on('error', (err) => {
+      console.error('❌ Redis Rate Limiter error:', err.message)
+    })
+
+    this.client.on('connect', () => {
+      console.log('✅ Redis Rate Limiter conectado')
+    })
+  }
+
+  private getKey(key: string): string {
+    return `ratelimit:${key}`
+  }
+
+  async check(
+    key: string,
+    config: RateLimitConfig
+  ): Promise<{
+    allowed: boolean
+    remaining: number
+    resetAt: Date
+    blockedUntil?: Date
+  }> {
+    const redisKey = this.getKey(key)
+    const now = Date.now()
+
+    try {
+      // Get current data
+      const data = await this.client.hgetall(redisKey)
+
+      // Check if blocked
+      if (data.blockedUntil) {
+        const blockedUntil = new Date(parseInt(data.blockedUntil))
+        if (blockedUntil.getTime() > now) {
+          return {
+            allowed: false,
+            remaining: 0,
+            resetAt: new Date(parseInt(data.resetAt) || now + config.windowMs),
+            blockedUntil,
+          }
+        }
+      }
+
+      // Check if window expired or no entry
+      if (!data.count || !data.resetAt || parseInt(data.resetAt) < now) {
+        const resetAt = now + config.windowMs
+        await this.client.hmset(redisKey, {
+          count: '1',
+          resetAt: resetAt.toString(),
+        })
+        await this.client.pexpire(redisKey, config.windowMs + (config.blockDurationMs || 0))
+
+        return {
+          allowed: true,
+          remaining: config.maxAttempts - 1,
+          resetAt: new Date(resetAt),
+        }
+      }
+
+      // Increment counter
+      const newCount = await this.client.hincrby(redisKey, 'count', 1)
+
+      // Check if exceeded limit
+      if (newCount > config.maxAttempts) {
+        if (config.blockDurationMs) {
+          const blockedUntil = now + config.blockDurationMs
+          await this.client.hset(redisKey, 'blockedUntil', blockedUntil.toString())
+          await this.client.pexpire(redisKey, config.blockDurationMs)
+
+          return {
+            allowed: false,
+            remaining: 0,
+            resetAt: new Date(parseInt(data.resetAt)),
+            blockedUntil: new Date(blockedUntil),
+          }
+        }
+
+        return {
+          allowed: false,
+          remaining: 0,
+          resetAt: new Date(parseInt(data.resetAt)),
+        }
+      }
+
+      return {
+        allowed: true,
+        remaining: config.maxAttempts - newCount,
+        resetAt: new Date(parseInt(data.resetAt)),
+      }
+    } catch (error) {
+      console.error('❌ Redis Rate Limiter check error:', error)
+      // Fallback: allow request if Redis fails
+      return {
+        allowed: true,
+        remaining: config.maxAttempts - 1,
+        resetAt: new Date(now + config.windowMs),
+      }
+    }
+  }
+
+  async reset(key: string): Promise<void> {
+    try {
+      await this.client.del(this.getKey(key))
+    } catch (error) {
+      console.error('❌ Redis Rate Limiter reset error:', error)
+    }
+  }
+
+  async disconnect(): Promise<void> {
+    await this.client.quit()
+  }
+}
+
+/**
  * Factory para crear adaptador según configuración
  */
 function createRateLimiterAdapter(): IRateLimiterAdapter {
@@ -354,9 +489,13 @@ function createRateLimiterAdapter(): IRateLimiterAdapter {
 
   if (redisEnabled && redisUrl) {
     console.log('📦 Rate Limiter: Redis habilitado')
-    console.warn('⚠️  Redis adapter no implementado aún, usando memoria')
-    // TODO: return new RateLimiterRedisAdapter(redisUrl)
-    return new RateLimiterMemoryAdapter()
+    try {
+      return new RateLimiterRedisAdapter(redisUrl)
+    } catch (error) {
+      console.error('❌ Error iniciando Redis Rate Limiter:', error)
+      console.warn('⚠️  Fallback a memoria')
+      return new RateLimiterMemoryAdapter()
+    }
   }
 
   console.log('📦 Rate Limiter: Usando memoria (development mode)')

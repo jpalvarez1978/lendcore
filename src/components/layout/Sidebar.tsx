@@ -179,7 +179,7 @@ function SidebarContent({ onLinkClick }: { onLinkClick?: () => void }) {
                     aria-hidden="true"
                   />
                 </button>
-                {isExpanded && (
+                {isExpanded && item.children && (
                   <div id={`submenu-${label}`} className="ml-4 mt-1 space-y-1" role="group">
                     {item.children.map(child => {
                       const ChildIcon = iconMap[child.icon]

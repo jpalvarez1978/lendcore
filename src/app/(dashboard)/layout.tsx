@@ -3,6 +3,7 @@ import { Header } from '@/components/layout/Header'
 import { Breadcrumbs } from '@/components/shared/Breadcrumbs'
 import { SkipToContent } from '@/components/shared/SkipToContent'
 import { InactivityDetector } from '@/components/auth/InactivityDetector'
+import { ErrorBoundary } from '@/components/error/ErrorBoundary'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +20,9 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           >
             <div className="mx-auto w-full max-w-[1440px]">
               <Breadcrumbs />
-              {children}
+              <ErrorBoundary>
+                {children}
+              </ErrorBoundary>
             </div>
           </main>
         </div>

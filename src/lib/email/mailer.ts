@@ -26,7 +26,7 @@ const createTransporter = () => {
     return null
   }
 
-  return nodemailer.createTransporter({
+  return nodemailer.createTransport({
     host,
     port,
     secure: port === 465, // true para 465, false para otros puertos

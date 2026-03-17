@@ -105,7 +105,8 @@ export function decryptSafe(encryptedData: string | null | undefined): string {
   } catch (error) {
     console.warn('Could not decrypt data, returning original value:', error)
     // Si falla la desencriptación, devolver el valor original (puede ser texto plano)
-    return encryptedData
+    // En este punto encryptedData es siempre string porque ya pasó la validación inicial
+    return encryptedData ?? ''
   }
 }
 
