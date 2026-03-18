@@ -72,17 +72,23 @@ export default function ReportesPage() {
           year: selectedYear.toString(),
         })
 
-        const [portfolio, aging, collection, profitability] = await Promise.all([
-          fetch(`/api/reports/portfolio?${params}`).then(res => res.json()),
-          fetch(`/api/reports/aging?${params}`).then(res => res.json()),
-          fetch(`/api/reports/collection?${params}`).then(res => res.json()),
-          fetch(`/api/reports/profitability?${params}`).then(res => res.json()),
+        const [portfolioRes, agingRes, collectionRes, profitabilityRes] = await Promise.all([
+          fetch(`/api/reports/portfolio?${params}`),
+          fetch(`/api/reports/aging?${params}`),
+          fetch(`/api/reports/collection?${params}`),
+          fetch(`/api/reports/profitability?${params}`),
         ])
 
-        setPortfolioReport(portfolio)
-        setAgingReport(aging)
-        setCollectionReport(collection)
-        setProfitabilityReport(profitability)
+        const portfolio = portfolioRes.ok ? await portfolioRes.json() : null
+        const aging = agingRes.ok ? await agingRes.json() : []
+        const collection = collectionRes.ok ? await collectionRes.json() : null
+        const profitability = profitabilityRes.ok ? await profitabilityRes.json() : []
+
+        // Ensure arrays are actually arrays (API might return error object)
+        setPortfolioReport(portfolio?.error ? null : portfolio)
+        setAgingReport(Array.isArray(aging) ? aging : [])
+        setCollectionReport(collection?.error ? null : collection)
+        setProfitabilityReport(Array.isArray(profitability) ? profitability : [])
       } catch (error) {
         console.error('Error fetching reports:', error)
       } finally {
