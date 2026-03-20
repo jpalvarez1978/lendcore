@@ -21,6 +21,14 @@ export function middleware(request: NextRequest) {
   // Control de información del referrer
   response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin')
 
+  // HSTS - Forzar HTTPS en producción (max-age: 1 año, incluir subdominios)
+  if (process.env.NODE_ENV === 'production') {
+    response.headers.set(
+      'Strict-Transport-Security',
+      'max-age=31536000; includeSubDomains; preload'
+    )
+  }
+
   // Deshabilita APIs peligrosas (geolocation, camera, microphone)
   response.headers.set(
     'Permissions-Policy',

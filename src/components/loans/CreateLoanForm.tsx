@@ -262,7 +262,6 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
         annualRate,
       }
 
-      console.log('🎉 Préstamo creado exitosamente, mostrando modal:', modalData)
       setCreatedLoanData(modalData)
       setShowSuccessModal(true)
     } catch (error) {

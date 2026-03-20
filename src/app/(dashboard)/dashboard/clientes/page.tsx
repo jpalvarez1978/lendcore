@@ -8,7 +8,7 @@ import { ClientService } from '@/services/clientService'
 
 export default async function ClientesPage() {
   const session = await auth()
-  const result = await ClientService.getAll({ pageSize: 500 })
+  const result = await ClientService.getAll({ pageSize: 50 })
   const canCreateClient =
     session?.user?.role ? hasPermission(session.user.role, 'CLIENTS_CREATE') : false
 

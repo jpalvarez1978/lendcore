@@ -3,6 +3,8 @@ import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import bcrypt from 'bcryptjs'
 import { z } from 'zod'
+import { withRateLimit } from '@/lib/security/rateLimitMiddleware'
+import { RateLimitConfigs } from '@/lib/security/rateLimiter'
 
 const changePasswordSchema = z.object({
   currentPassword: z.string().min(1, 'La contraseña actual es requerida'),
@@ -25,6 +27,16 @@ export async function POST(request: NextRequest) {
         { error: 'No autenticado' },
         { status: 401 }
       )
+    }
+
+    // Rate limiting: 3 intentos por hora
+    const rateLimitResponse = await withRateLimit(
+      request,
+      RateLimitConfigs.PASSWORD_CHANGE,
+      `pwd:${session.user.id}`
+    )
+    if (rateLimitResponse) {
+      return rateLimitResponse
     }
 
     const body = await request.json()
@@ -81,8 +93,8 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Generar hash de la nueva contraseña
-    const newPasswordHash = await bcrypt.hash(newPassword, 10)
+    // Generar hash de la nueva contraseña (12 rounds para seguridad adecuada)
+    const newPasswordHash = await bcrypt.hash(newPassword, 12)
 
     // Actualizar contraseña en una transacción
     await prisma.$transaction(async (tx) => {
@@ -115,13 +127,8 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error('Error changing password:', error)
 
-    // Mensaje más específico si es un error de Prisma
-    const errorMessage = error instanceof Error
-      ? error.message
-      : 'Error al cambiar la contraseña'
-
     return NextResponse.json(
-      { success: false, error: errorMessage },
+      { success: false, error: 'Error al cambiar la contraseña' },
       { status: 500 }
     )
   }

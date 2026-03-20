@@ -7,7 +7,11 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: 'https',
-        hostname: '**',
+        hostname: 'jpalavarez.org',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.jpalavarez.org',
       },
     ],
     formats: ['image/avif', 'image/webp'],

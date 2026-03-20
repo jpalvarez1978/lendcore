@@ -75,7 +75,6 @@ export function ClientCombobox({ clients, value, onValueChange, disabled }: Clie
   }, [clients, searchTerm])
 
   const handleSelect = (clientId: string) => {
-    console.log('✅ Seleccionando cliente:', clientId)
     onValueChange(clientId)
     setSearchTerm('')
     setOpen(false)

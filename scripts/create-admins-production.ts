@@ -43,7 +43,7 @@ async function createAdminsProduction() {
   try {
     // Nueva contraseña temporal
     const password = 'JeanPaul2026!'
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await bcrypt.hash(password, 12)
 
     // Verificar que el hash funciona ANTES de crear usuarios
     const testMatch = await bcrypt.compare(password, passwordHash)

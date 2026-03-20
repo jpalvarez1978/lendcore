@@ -458,12 +458,9 @@ export class RateLimiterRedisAdapter implements IRateLimiterAdapter {
       }
     } catch (error) {
       console.error('❌ Redis Rate Limiter check error:', error)
-      // Fallback: allow request if Redis fails
-      return {
-        allowed: true,
-        remaining: config.maxAttempts - 1,
-        resetAt: new Date(now + config.windowMs),
-      }
+      // Fallback seguro: usar rate limiter en memoria cuando Redis falla
+      const memoryFallback = new RateLimiterMemoryAdapter()
+      return memoryFallback.check(key, config)
     }
   }
 

@@ -88,8 +88,6 @@ export function ApplicationWorkflowPanel({
   const statusCopy = useMemo(() => getStatusCopy(status), [status])
 
   const handleAction = async (action: WorkflowAction) => {
-    console.log('🔵 handleAction called with:', action)
-
     if (action === 'reject' && !rejectionReason.trim()) {
       toast({
         variant: 'destructive',
@@ -100,7 +98,6 @@ export function ApplicationWorkflowPanel({
     }
 
     setSubmitting(true)
-    console.log('🔵 Submitting to API...')
 
     try {
       const requestBody = {
@@ -108,7 +105,6 @@ export function ApplicationWorkflowPanel({
         approvalNotes: approvalNotes.trim() || undefined,
         rejectionReason: rejectionReason.trim() || undefined,
       }
-      console.log('🔵 Request body:', requestBody)
 
       const response = await fetch(`/api/applications/${applicationId}/status`, {
         method: 'POST',
@@ -116,9 +112,7 @@ export function ApplicationWorkflowPanel({
         body: JSON.stringify(requestBody),
       })
 
-      console.log('🔵 Response status:', response.status)
       const payload = (await response.json()) as { error?: string }
-      console.log('🔵 Response payload:', payload)
 
       if (!response.ok) {
         throw new Error(payload.error || 'No se pudo actualizar la solicitud')
@@ -143,7 +137,6 @@ export function ApplicationWorkflowPanel({
               : 'El rechazo quedó registrado con su motivo.',
       })
 
-      console.log('🟢 Action completed successfully')
       router.refresh()
     } catch (error) {
       console.error('🔴 Error in handleAction:', error)

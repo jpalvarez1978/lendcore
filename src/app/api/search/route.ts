@@ -34,8 +34,6 @@ function getClientName(client: {
 }
 
 export async function GET(request: NextRequest) {
-  const startTime = Date.now()
-
   try {
     const session = await auth()
 
@@ -121,8 +119,6 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
     ])
 
-    const dbTime = Date.now() - startTime
-
     // Procesar clientes - ULTRA OPTIMIZADO
     let clientMatches = 0
     for (const client of clients) {
@@ -190,29 +186,15 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const elapsed = Date.now() - startTime
-    const processingTime = elapsed - dbTime
-
-    console.log(
-      `[Search FAST] "${query}" | DB: ${dbTime}ms | Process: ${processingTime}ms | ` +
-      `Total: ${elapsed}ms | Results: ${results.length}`
-    )
-
     return NextResponse.json({
       results,
-      _meta: {
-        elapsed,
-        dbTime,
-        processingTime,
-        count: results.length,
-      },
+      count: results.length,
     })
   } catch (error) {
-    const elapsed = Date.now() - startTime
-    console.error(`[Search] Error after ${elapsed}ms:`, error)
+    console.error('[Search] Error:', error)
 
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Error al buscar' },
+      { error: 'Error al buscar' },
       { status: 500 }
     )
   }

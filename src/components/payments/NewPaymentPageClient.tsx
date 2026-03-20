@@ -200,8 +200,6 @@ export default function NewPaymentPageClient() {
         allocatedToPenalty: allocatedToPenalty > 0 ? allocatedToPenalty : undefined,
       }
 
-      console.log('🎉 Pago registrado exitosamente, mostrando modal:', modalData)
-      console.log('Result from API:', result)
       setPaymentSuccessData(modalData)
       setShowSuccessModal(true)
       setSubmitting(false)
