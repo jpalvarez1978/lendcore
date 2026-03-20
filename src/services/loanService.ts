@@ -224,6 +224,7 @@ export class LoanService {
             allocations: true,
           },
           orderBy: { paidAt: 'desc' },
+          take: 50, // B8: Limitar pagos para evitar N+1 en préstamos con muchos pagos
         },
       },
     })
@@ -421,11 +422,30 @@ export class LoanService {
   }
 
   /**
-   * Actualizar estado del préstamo
+   * Transiciones de estado válidas (B6 — State machine)
+   */
+  private static readonly VALID_TRANSITIONS: Record<LoanStatus, LoanStatus[]> = {
+    ACTIVE: ['PAID', 'DEFAULTED', 'CANCELLED', 'RESTRUCTURED'],
+    DEFAULTED: ['ACTIVE', 'PAID', 'CANCELLED', 'RESTRUCTURED'],
+    PAID: [],                                      // Estado final
+    CANCELLED: [],                                 // Estado final
+    RESTRUCTURED: ['ACTIVE'],                      // Puede volver a activo
+  }
+
+  /**
+   * Actualizar estado del préstamo con validación de transiciones
    */
   static async updateStatus(id: string, status: LoanStatus, userId: string) {
     const loan = await this.getById(id)
     if (!loan) throw new Error('Préstamo no encontrado')
+
+    // Validar transición de estado (B6)
+    const allowedTransitions = this.VALID_TRANSITIONS[loan.status as LoanStatus] || []
+    if (!allowedTransitions.includes(status)) {
+      throw new Error(
+        `Transición de estado no permitida: ${loan.status} → ${status}`
+      )
+    }
 
     const updated = await prisma.loan.update({
       where: { id },

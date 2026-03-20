@@ -125,7 +125,7 @@ export default function NewApplicationPageClient() {
     <div className="space-y-6 max-w-4xl mx-auto p-6">
       <div className="flex items-center gap-4">
         <Link href="/dashboard/solicitudes">
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Volver a solicitudes">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>

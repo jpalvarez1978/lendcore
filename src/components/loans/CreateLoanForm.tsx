@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm } from 'react-hook-form'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -114,7 +115,7 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
     watch,
     setValue,
     reset,
-    formState: { errors },
+    formState: { errors, isDirty },
   } = useForm<CreateLoanFormData>({
     resolver: zodResolver(createLoanSchema),
     mode: 'onBlur', // Validate on blur for better UX
@@ -135,6 +136,9 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
   // Watch all fields for preview
   const watchedFields = watch()
   const hasGuarantor = watch('hasGuarantor')
+
+  // F2: Advertir si hay cambios sin guardar
+  useUnsavedChanges(isDirty)
 
   useEffect(() => {
     if (!sourceApplication) return

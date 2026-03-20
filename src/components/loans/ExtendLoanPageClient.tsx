@@ -258,7 +258,7 @@ export default function ExtendLoanPageClient() {
     <div className="space-y-6 max-w-7xl mx-auto p-6">
       <div className="flex items-center gap-4">
         <Link href={`/dashboard/prestamos/${loanId}`}>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Volver al préstamo">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>

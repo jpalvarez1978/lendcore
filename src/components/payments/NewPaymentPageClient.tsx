@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -104,6 +105,11 @@ export default function NewPaymentPageClient() {
     allocatedToInterest: number
     allocatedToPenalty?: number
   } | null>(null)
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false)
+
+  // F2: Advertir si hay cambios sin guardar
+  const hasUnsavedChanges = amount !== '' && !showSuccessModal
+  useUnsavedChanges(hasUnsavedChanges)
 
   useEffect(() => {
     if (!loanId) {
@@ -136,8 +142,14 @@ export default function NewPaymentPageClient() {
       .finally(() => setLoading(false))
   }, [loanId])
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  // F1: Interceptar submit para mostrar confirmación
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    setShowConfirmDialog(true)
+  }
+
+  const handleConfirmedSubmit = async () => {
+    setShowConfirmDialog(false)
     setSubmitting(true)
     setError('')
 
@@ -244,7 +256,7 @@ export default function NewPaymentPageClient() {
     <div className="space-y-6 max-w-6xl mx-auto p-6">
       <div className="flex items-center gap-4">
         <Link href={`/dashboard/prestamos/${loanId}`}>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Volver atrás">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
@@ -321,7 +333,7 @@ export default function NewPaymentPageClient() {
             <CardTitle>Datos del Pago</CardTitle>
           </CardHeader>
           <CardContent>
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleFormSubmit} className="space-y-4">
               <div>
                 <Label htmlFor="payment-amount">Monto a Pagar *</Label>
                 <Input
@@ -384,6 +396,34 @@ export default function NewPaymentPageClient() {
           </CardContent>
         </Card>
       </div>
+
+      {/* F1: Diálogo de confirmación antes de registrar pago */}
+      {showConfirmDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true" aria-label="Confirmar pago">
+          <div className="mx-4 w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#14263f]">Confirmar registro de pago</h3>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Estás a punto de registrar un pago por <strong>{formatCurrency(parseFloat(amount || '0'))}</strong>.
+              Esta operación no se puede deshacer.
+            </p>
+            <div className="mt-6 flex gap-3 justify-end">
+              <Button
+                variant="outline"
+                onClick={() => setShowConfirmDialog(false)}
+                className="rounded-xl"
+              >
+                Cancelar
+              </Button>
+              <Button
+                onClick={handleConfirmedSubmit}
+                className="rounded-xl bg-[linear-gradient(135deg,#14263f_0%,#1f3a5c_72%,#a97b36_100%)] text-white"
+              >
+                Confirmar pago
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Modal de éxito */}
       {paymentSuccessData && (

@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
+import { useUnsavedChanges } from '@/hooks/useUnsavedChanges'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,6 +98,10 @@ export default function EditClientPageClient() {
   const [loadingData, setLoadingData] = useState(true)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+  const [hasEdited, setHasEdited] = useState(false)
+
+  // F2: Advertir si hay cambios sin guardar
+  useUnsavedChanges(hasEdited && !success)
 
   // Datos del cliente
   const [clientType, setClientType] = useState<ClientTypeValue>('INDIVIDUAL')
@@ -256,7 +261,7 @@ export default function EditClientPageClient() {
       {/* Header */}
       <div className="flex items-center gap-4">
         <Link href={`/dashboard/clientes/${clientId}`}>
-          <Button variant="ghost" size="icon">
+          <Button variant="ghost" size="icon" aria-label="Volver al cliente">
             <ArrowLeft className="h-4 w-4" />
           </Button>
         </Link>
@@ -280,7 +285,7 @@ export default function EditClientPageClient() {
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} onChange={() => setHasEdited(true)} className="space-y-6">
         {/* Configuración General */}
         <Card>
           <CardHeader>

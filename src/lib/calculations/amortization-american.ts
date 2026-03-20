@@ -136,6 +136,20 @@ export function generateAmericanSchedule(
     firstDueDate,
   } = terms
 
+  // Validación B5: termMonths debe ser > 0
+  if (!termMonths || termMonths <= 0) {
+    throw new Error('El plazo del préstamo debe ser mayor a 0 meses')
+  }
+
+  // Validación B12: Monto máximo razonable (10 millones EUR)
+  if (principalAmount > 10_000_000) {
+    throw new Error('El monto principal no puede exceder 10.000.000€')
+  }
+
+  if (principalAmount <= 0) {
+    throw new Error('El monto principal debe ser mayor a 0')
+  }
+
   // Calcular número de cuotas
   const numberOfInstallments = calculateNumberOfInstallments(
     termMonths,

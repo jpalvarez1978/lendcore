@@ -12,6 +12,7 @@ import {
 } from '@/lib/utils/installmentStatus'
 import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
 import { LoanService } from './loanService'
+import { getNowInSpain } from '@/lib/utils/timezone'
 
 export interface CreatePaymentData {
   loanId: string
@@ -140,7 +141,12 @@ export class PaymentService {
       throw new Error('El monto del pago debe ser mayor que 0')
     }
 
-    const paymentDate = data.paidAt || new Date()
+    // B12: Validar monto máximo razonable
+    if (data.amount > 10_000_000) {
+      throw new Error('El monto del pago no puede exceder 10.000.000€')
+    }
+
+    const paymentDate = data.paidAt || getNowInSpain()
 
     // MODO 1: Pago a cuota específica
     if (data.installmentId) {
@@ -259,18 +265,45 @@ export class PaymentService {
       return newPayment
     }, TRANSACTION_CONFIG.CRITICAL)
 
-    // Recalcular totales del préstamo
-    await LoanService.recalculateTotals(data.loanId)
+    // Recalcular totales y auditar DENTRO de una transacción para garantizar consistencia (B3, B14)
+    await prisma.$transaction(async tx => {
+      // Recalcular totales del préstamo
+      const loan2 = await tx.loan.findUnique({
+        where: { id: data.loanId },
+        include: { installments: true },
+      })
+      if (loan2) {
+        const totals = loan2.installments.reduce(
+          (summary, installment) => {
+            summary.totalPaid += Number(installment.paidAmount || 0)
+            summary.outstandingPrincipal += Number(installment.pendingAmount || 0)
+            return summary
+          },
+          { totalPaid: 0, outstandingPrincipal: 0 }
+        )
 
-    // Auditoría
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'CREATE',
-        entityType: 'payments',
-        entityId: payment.id,
-        newValue: this.buildPaymentAuditSnapshot(payment, previewAllocations),
-      },
+        const allInstallmentsPaid = loan2.installments.every(inst => inst.status === 'PAID')
+
+        await tx.loan.update({
+          where: { id: data.loanId },
+          data: {
+            outstandingPrincipal: Number(Math.max(0, totals.outstandingPrincipal).toFixed(2)),
+            totalPaid: Number(totals.totalPaid.toFixed(2)),
+            status: allInstallmentsPaid ? 'PAID' : loan2.status,
+          },
+        })
+      }
+
+      // Auditoría dentro de la misma transacción
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'CREATE',
+          entityType: 'payments',
+          entityId: payment.id,
+          newValue: this.buildPaymentAuditSnapshot(payment, previewAllocations),
+        },
+      })
     })
 
     return payment
@@ -312,7 +345,7 @@ export class PaymentService {
       )
     }
 
-    const paymentDate = data.paidAt || new Date()
+    const paymentDate = data.paidAt || getNowInSpain()
     const installmentPayment = this.applyPaymentToInstallment(
       installment,
       data.amount,
@@ -356,20 +389,45 @@ export class PaymentService {
       return newPayment
     }, TRANSACTION_CONFIG.CRITICAL)
 
-    // Recalcular totales del préstamo
-    await LoanService.recalculateTotals(data.loanId)
+    // Recalcular totales y auditar DENTRO de una transacción (B3, B14)
+    await prisma.$transaction(async tx => {
+      const loan2 = await tx.loan.findUnique({
+        where: { id: data.loanId },
+        include: { installments: true },
+      })
+      if (loan2) {
+        const totals = loan2.installments.reduce(
+          (summary, inst) => {
+            summary.totalPaid += Number(inst.paidAmount || 0)
+            summary.outstandingPrincipal += Number(inst.pendingAmount || 0)
+            return summary
+          },
+          { totalPaid: 0, outstandingPrincipal: 0 }
+        )
 
-    // Auditoría
-    await prisma.auditLog.create({
-      data: {
-        userId,
-        action: 'CREATE',
-        entityType: 'payments',
-        entityId: payment.id,
-        newValue: {
-          ...this.buildPaymentAuditSnapshot(payment, allocations, data.installmentId),
+        const allPaid = loan2.installments.every(inst => inst.status === 'PAID')
+
+        await tx.loan.update({
+          where: { id: data.loanId },
+          data: {
+            outstandingPrincipal: Number(Math.max(0, totals.outstandingPrincipal).toFixed(2)),
+            totalPaid: Number(totals.totalPaid.toFixed(2)),
+            status: allPaid ? 'PAID' : loan2.status,
+          },
+        })
+      }
+
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'CREATE',
+          entityType: 'payments',
+          entityId: payment.id,
+          newValue: {
+            ...this.buildPaymentAuditSnapshot(payment, allocations, data.installmentId),
+          },
         },
-      },
+      })
     })
 
     return payment
