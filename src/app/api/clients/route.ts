@@ -9,6 +9,7 @@ import { withCreateRateLimit, withAPIRateLimit } from '@/lib/security/rateLimitM
 import { ClientStatus, ClientType, RiskLevel } from '@prisma/client'
 import {
   AppError,
+  formatPrismaError,
   getErrorMessage,
   isZodValidationError,
 } from '@/lib/utils/errorMessages'
@@ -178,6 +179,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(client, { status: 201 })
   } catch (error: unknown) {
     console.error('Error creating client:', error)
+
+    // Detectar errores de Prisma (unique constraint, etc.)
+    if (error && typeof error === 'object' && 'code' in error && error.code === 'P2002') {
+      return NextResponse.json(
+        { error: formatPrismaError(error) },
+        { status: 409 }
+      )
+    }
 
     if (isZodValidationError(error)) {
       return NextResponse.json(

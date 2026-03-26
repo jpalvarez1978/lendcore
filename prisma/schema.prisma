@@ -124,7 +124,7 @@ model IndividualProfile {
 
   firstName String
   lastName  String
-  taxId     String @unique // DNI/NIE
+  taxId     String? // DNI/NIE — unicidad validada en clientService (datos encriptados)
 
   dateOfBirth DateTime?
   occupation  String?
@@ -149,9 +149,9 @@ model BusinessProfile {
   clientId String @unique
 
   businessName  String
-  taxId         String @unique // CIF
+  taxId         String? // CIF — unicidad validada en clientService (datos encriptados)
   legalRepName  String
-  legalRepTaxId String // DNI del representante
+  legalRepTaxId String? // DNI del representante
 
   industry      String?
   annualRevenue Decimal? @db.Decimal(15, 2)

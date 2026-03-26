@@ -464,7 +464,7 @@ export class ClientService {
                 create: {
                   firstName: data.individualProfile.firstName,
                   lastName: data.individualProfile.lastName,
-                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? '',
+                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? null,
                   dateOfBirth: data.individualProfile.dateOfBirth,
                   occupation: data.individualProfile.occupation,
                   income: data.individualProfile.income,
@@ -485,11 +485,11 @@ export class ClientService {
               businessProfile: {
                 create: {
                   businessName: data.businessProfile.businessName,
-                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? '',
+                  taxId: encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? null,
                   legalRepName: data.businessProfile.legalRepName,
                   legalRepTaxId: encryptIfNeeded(
                     this.sanitizeOptionalText(data.businessProfile.legalRepTaxId)
-                  ) ?? '',
+                  ) ?? null,
                   industry: data.businessProfile.industry,
                   annualRevenue: data.businessProfile.annualRevenue,
                   employeeCount: data.businessProfile.employeeCount,
@@ -569,7 +569,7 @@ export class ClientService {
                   lastName: data.individualProfile.lastName,
                   taxId:
                     data.individualProfile.taxId !== undefined
-                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? '')
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.individualProfile.taxId)) ?? null)
                       : undefined,
                   dateOfBirth: data.individualProfile.dateOfBirth,
                   occupation: data.individualProfile.occupation,
@@ -597,12 +597,12 @@ export class ClientService {
                   businessName: data.businessProfile.businessName,
                   taxId:
                     data.businessProfile.taxId !== undefined
-                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? '')
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.taxId)) ?? null)
                       : undefined,
                   legalRepName: data.businessProfile.legalRepName,
                   legalRepTaxId:
                     data.businessProfile.legalRepTaxId !== undefined
-                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.legalRepTaxId)) ?? '')
+                      ? (encryptIfNeeded(this.sanitizeOptionalText(data.businessProfile.legalRepTaxId)) ?? null)
                       : undefined,
                   industry: data.businessProfile.industry,
                   annualRevenue: data.businessProfile.annualRevenue,
