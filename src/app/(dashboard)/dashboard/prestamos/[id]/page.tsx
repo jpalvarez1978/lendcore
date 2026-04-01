@@ -12,6 +12,8 @@ import { hasPermission } from '@/lib/constants/permissions'
 import { ArrowLeft, CreditCard, FileText, Calendar, TrendingUp, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 import { notFound } from 'next/navigation'
+import { UserRole } from '@prisma/client'
+import { EditLoanModal } from '@/components/loans/EditLoanModal'
 
 export default async function LoanDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -42,6 +44,11 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
     session?.user?.role ? hasPermission(session.user.role, 'PAYMENTS_REGISTER') : false
   const canEditLoan =
     session?.user?.role ? hasPermission(session.user.role, 'LOANS_EDIT') : false
+  const isAdmin = session?.user?.role === UserRole.ADMIN
+
+  const pendingInstallmentsCount = loan.installments.filter(
+    inst => inst.status === 'PENDING'
+  ).length
 
   return (
     <div className="space-y-6">
@@ -76,6 +83,19 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
                     Prorrogar Préstamo
                   </Button>
                 </Link>
+              )}
+              {isAdmin && (
+                <EditLoanModal
+                  loanId={loan.id}
+                  loanNumber={loan.loanNumber}
+                  currentInterestRate={Number(loan.interestRate)}
+                  interestType={loan.interestType}
+                  principalAmount={Number(loan.principalAmount)}
+                  outstandingPrincipal={Number(loan.outstandingPrincipal)}
+                  pendingInstallmentsCount={pendingInstallmentsCount}
+                  currentNotes={loan.notes ?? null}
+                  currentClientInstructions={loan.clientInstructions ?? null}
+                />
               )}
             </>
           )}

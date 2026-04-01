@@ -5,6 +5,7 @@ import { permissionDeniedResponse } from '@/lib/security/apiRouteUtils'
 import { withAPIRateLimit } from '@/lib/security/rateLimitMiddleware'
 import { LoanService } from '@/services/loanService'
 import { getErrorMessage } from '@/lib/utils/errorMessages'
+import { UserRole } from '@prisma/client'
 
 export async function GET(
   request: NextRequest,
@@ -37,6 +38,59 @@ export async function GET(
     console.error('Error fetching loan:', error)
     return NextResponse.json(
       { error: getErrorMessage(error, 'Error al obtener el préstamo') },
+      { status: 500 }
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
+// PATCH /api/loans/[id]
+// Exclusivo ADMIN: edita tasa de interés, notas e instrucciones de un préstamo
+// activo. Si cambia la tasa, recalcula automáticamente las cuotas PENDING.
+// ---------------------------------------------------------------------------
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const session = await auth()
+    if (!session?.user) {
+      return NextResponse.json({ error: 'No autorizado' }, { status: 401 })
+    }
+
+    // Solo ADMIN puede modificar las condiciones financieras de un préstamo
+    if (session.user.role !== UserRole.ADMIN) {
+      return permissionDeniedResponse(request, session, 'api/loans/[id]', 'LOANS_EDIT')
+    }
+
+    const rateLimitResponse = await withAPIRateLimit(request)
+    if (rateLimitResponse) return rateLimitResponse
+
+    const { id } = await params
+    const body = await request.json() as {
+      interestRate?: number
+      notes?: string | null
+      clientInstructions?: string | null
+    }
+
+    // Validación de la tasa si viene en el payload
+    if (body.interestRate !== undefined) {
+      const rate = body.interestRate
+      if (typeof rate !== 'number' || isNaN(rate) || rate <= 0 || rate > 100) {
+        return NextResponse.json(
+          { error: 'La tasa de interés debe ser un número entre 0,01 y 100' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const updatedLoan = await LoanService.updateLoan(id, body, session.user.id)
+
+    return NextResponse.json(updatedLoan)
+  } catch (error: unknown) {
+    console.error('Error updating loan:', error)
+    return NextResponse.json(
+      { error: getErrorMessage(error, 'Error al actualizar el préstamo') },
       { status: 500 }
     )
   }

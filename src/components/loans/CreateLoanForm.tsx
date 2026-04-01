@@ -27,6 +27,7 @@ import { Loader2, Save, Eye, Sparkles } from 'lucide-react'
 import type { AmortizationType, InterestType, PaymentFrequency } from '@prisma/client'
 import { normalizeInterestRateForInput, normalizeInterestRateForStorage } from '@/lib/utils/interestRate'
 import { calculateLoanSummary } from '@/lib/calculations/amortization'
+import { formatCurrency } from '@/lib/formatters/currency'
 
 // Schema de validación
 const createLoanSchema = z.object({
@@ -517,26 +518,43 @@ export function CreateLoanForm({ sourceApplication }: CreateLoanFormProps) {
                 <Input
                   id="interestRate"
                   type="number"
-                  step="0.1"
+                  step="1"
                   min="0"
+                  max={watchedFields.interestType === 'FIXED_AMOUNT' ? undefined : 100}
                   {...register('interestRate', { valueAsNumber: true })}
                   placeholder={
                     watchedFields.interestType === 'FIXED_AMOUNT'
                       ? '50'
                       : watchedFields.interestType === 'PERCENTAGE_ANNUAL'
                         ? '12 (para 12% anual)'
-                        : '1 (para 1% mensual)'
+                        : '10 (para 10% mensual)'
                   }
                 />
+                {/* Helper estático */}
                 <p className="text-xs text-muted-foreground mt-1">
                   {watchedFields.interestType === 'FIXED_AMOUNT'
-                    ? 'Monto fijo en euros'
+                    ? 'Monto fijo en euros por cuota'
                     : watchedFields.interestType === 'PERCENTAGE_ANNUAL'
-                      ? 'Escribe 1 para 1%, 12 para 12%, etc.'
-                      : 'Escribe 1 para 1% mensual, 2 para 2%, etc.'}
+                      ? 'Escribe el % anual completo: 12, 24, 36…'
+                      : 'Escribe el % mensual completo: 5, 10, 15…'}
                 </p>
+                {/* Preview en euros en tiempo real */}
+                {watchedFields.interestType === 'PERCENTAGE_MONTHLY' &&
+                  Number(watchedFields.principalAmount) > 0 &&
+                  Number(watchedFields.interestRate) > 0 && (
+                    <p className="text-xs font-semibold text-blue-600 mt-1">
+                      → {formatCurrency(Number(watchedFields.principalAmount) * (Number(watchedFields.interestRate) / 100))} de interés por cuota mensual
+                    </p>
+                  )}
+                {watchedFields.interestType === 'PERCENTAGE_ANNUAL' &&
+                  Number(watchedFields.principalAmount) > 0 &&
+                  Number(watchedFields.interestRate) > 0 && (
+                    <p className="text-xs font-semibold text-blue-600 mt-1">
+                      → {formatCurrency(Number(watchedFields.principalAmount) * (Number(watchedFields.interestRate) / 100 / 12))} de interés mensual equivalente
+                    </p>
+                  )}
                 {errors.interestRate && (
-                  <p className="text-sm text-red-500 mt-1">{(errors.interestRate?.message || "") as string}</p>
+                  <p className="text-sm text-red-500 mt-1">{(errors.interestRate?.message || '') as string}</p>
                 )}
               </div>
 

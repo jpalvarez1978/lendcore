@@ -513,4 +513,147 @@ export class LoanService {
       },
     })
   }
+
+  // ---------------------------------------------------------------------------
+  // Edición de préstamo activo — solo ADMIN
+  // Recalcula las cuotas PENDING con la nueva tasa. Las cuotas PAID/PARTIAL/OVERDUE
+  // no se tocan para preservar la integridad de los pagos ya registrados.
+  // ---------------------------------------------------------------------------
+  static async updateLoan(
+    id: string,
+    data: {
+      interestRate?: number   // % humano (ej: 10 = 10%)
+      notes?: string | null
+      clientInstructions?: string | null
+    },
+    userId: string
+  ) {
+    const loan = await this.getById(id)
+    if (!loan) throw new Error('Préstamo no encontrado')
+    if (loan.status !== 'ACTIVE') throw new Error('Solo se pueden editar préstamos activos')
+
+    const oldInterestRate  = Number(loan.interestRate)
+    const oldTotalInterest = Number(loan.totalInterest)
+
+    // ── Caso simple: solo se actualizan notas / instrucciones ──────────────────
+    if (data.interestRate === undefined) {
+      await prisma.loan.update({
+        where: { id },
+        data: {
+          ...(data.notes !== undefined             && { notes: data.notes }),
+          ...(data.clientInstructions !== undefined && { clientInstructions: data.clientInstructions }),
+        },
+      })
+
+      await prisma.auditLog.create({
+        data: {
+          userId,
+          action: 'UPDATE',
+          entityType: 'loans',
+          entityId: id,
+          oldValue: { notes: loan.notes, clientInstructions: loan.clientInstructions },
+          newValue: { notes: data.notes, clientInstructions: data.clientInstructions },
+        },
+      })
+
+      return await this.getById(id)
+    }
+
+    // ── Caso con nueva tasa: recalcular cuotas PENDING ─────────────────────────
+    const newStoredRate = normalizeInterestRateForStorage(data.interestRate, loan.interestType)
+    const calcRate      = normalizeInterestRateForInput(newStoredRate, loan.interestType)
+
+    // Solo tocamos cuotas PENDING (sin pagos vinculados — es seguro borrarlas)
+    const pendingInstallments = loan.installments.filter(
+      inst => inst.status === 'PENDING'
+    )
+
+    if (pendingInstallments.length === 0) {
+      throw new Error(
+        'No hay cuotas PENDIENTE para recalcular. Las cuotas vencidas o parcialmente pagadas deben gestionarse manualmente.'
+      )
+    }
+
+    // Ordenar por número de cuota para tomar la primera fecha
+    pendingInstallments.sort((a, b) => a.installmentNumber - b.installmentNumber)
+    const firstPendingNumber  = pendingInstallments[0].installmentNumber
+    const firstPendingDueDate = pendingInstallments[0].dueDate
+    const outstandingPrincipal = Number(loan.outstandingPrincipal)
+
+    // Calcular nuevo cronograma solo para las cuotas pendientes
+    const { installments: newSchedule, summary } = calculateLoanSummary({
+      principalAmount:  outstandingPrincipal,
+      amortizationType: loan.amortizationType,
+      interestType:     loan.interestType,
+      interestRate:     calcRate,
+      termMonths:       pendingInstallments.length,
+      paymentFrequency: loan.paymentFrequency,
+      firstDueDate:     firstPendingDueDate,
+    })
+
+    // Interés total nuevo = interés ya pagado/vencido + interés nuevo proyectado
+    const nonPendingInterest = loan.installments
+      .filter(inst => inst.status !== 'PENDING')
+      .reduce((sum, inst) => sum + Number(inst.interestAmount), 0)
+    const newTotalInterest = Number((nonPendingInterest + summary.totalInterest).toFixed(2))
+    const newFinalDueDate  = newSchedule[newSchedule.length - 1].dueDate
+
+    await prisma.$transaction(async tx => {
+      // 1. Borrar solo cuotas PENDING (sin payment allocations — operación segura)
+      await tx.installment.deleteMany({
+        where: { loanId: id, status: 'PENDING' },
+      })
+
+      // 2. Insertar nuevo cronograma con los mismos números de cuota
+      await tx.installment.createMany({
+        data: newSchedule.map((inst, idx) => ({
+          loanId:            id,
+          installmentNumber: firstPendingNumber + idx,
+          dueDate:           inst.dueDate,
+          principalAmount:   inst.principalAmount,
+          interestAmount:    inst.interestAmount,
+          totalAmount:       inst.totalAmount,
+          paidAmount:        0,
+          pendingAmount:     inst.totalAmount,
+          status:            'PENDING' as const,
+        })),
+      })
+
+      // 3. Actualizar cabecera del préstamo
+      await tx.loan.update({
+        where: { id },
+        data: {
+          interestRate:       newStoredRate,
+          totalInterest:      newTotalInterest,
+          finalDueDate:       newFinalDueDate,
+          ...(data.notes !== undefined             && { notes: data.notes }),
+          ...(data.clientInstructions !== undefined && { clientInstructions: data.clientInstructions }),
+        },
+      })
+
+      // 4. AuditLog dentro de la transacción para consistencia total
+      await tx.auditLog.create({
+        data: {
+          userId,
+          action: 'UPDATE',
+          entityType: 'loans',
+          entityId: id,
+          oldValue: {
+            interestRate:              oldInterestRate,
+            totalInterest:             oldTotalInterest,
+            pendingInstallmentsCount:  pendingInstallments.length,
+          },
+          newValue: {
+            interestRate:              newStoredRate,
+            interestRateHuman:         `${data.interestRate}%`,
+            totalInterest:             newTotalInterest,
+            pendingInstallmentsCount:  newSchedule.length,
+            recalculatedFrom:          `Cuota #${firstPendingNumber}`,
+          },
+        },
+      })
+    }, TRANSACTION_CONFIG.CRITICAL)
+
+    return await this.getById(id)
+  }
 }
