@@ -115,8 +115,8 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
   },
   session: {
     strategy: 'jwt',
-    maxAge: 30 * 60, // 30 minutos de sesión máxima
-    updateAge: 5 * 60, // Actualizar sesión cada 5 minutos si hay actividad
+    maxAge: 8 * 60 * 60, // 8 horas máximo absoluto (el cierre real lo gestiona InactivityDetector a los 30 min de inactividad)
+    updateAge: 5 * 60, // Renovar token cada 5 minutos si el usuario está activo
   },
   secret: process.env.NEXTAUTH_SECRET,
 })
