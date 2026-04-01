@@ -46,9 +46,11 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
     session?.user?.role ? hasPermission(session.user.role, 'LOANS_EDIT') : false
   const isAdmin = session?.user?.role === UserRole.ADMIN
 
-  const pendingInstallmentsCount = loan.installments.filter(
-    inst => inst.status === 'PENDING'
-  ).length
+  const pendingInstallments = loan.installments
+    .filter(inst => inst.status === 'PENDING')
+    .sort((a, b) => a.installmentNumber - b.installmentNumber)
+  const pendingInstallmentsCount = pendingInstallments.length
+  const firstPendingDueDate = pendingInstallments[0]?.dueDate ?? null
 
   return (
     <div className="space-y-6">
@@ -93,6 +95,7 @@ export default async function LoanDetailPage({ params }: { params: Promise<{ id:
                   principalAmount={Number(loan.principalAmount)}
                   outstandingPrincipal={Number(loan.outstandingPrincipal)}
                   pendingInstallmentsCount={pendingInstallmentsCount}
+                  firstPendingDueDate={firstPendingDueDate}
                   currentNotes={loan.notes ?? null}
                   currentClientInstructions={loan.clientInstructions ?? null}
                 />

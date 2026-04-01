@@ -68,12 +68,14 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json() as {
-      interestRate?: number
-      notes?: string | null
-      clientInstructions?: string | null
+      interestRate?:        number
+      newFirstPendingDate?: string
+      pendingMonths?:       number
+      notes?:               string | null
+      clientInstructions?:  string | null
     }
 
-    // Validación de la tasa si viene en el payload
+    // Validaciones de campos financieros
     if (body.interestRate !== undefined) {
       const rate = body.interestRate
       if (typeof rate !== 'number' || isNaN(rate) || rate <= 0 || rate > 100) {
@@ -84,7 +86,33 @@ export async function PATCH(
       }
     }
 
-    const updatedLoan = await LoanService.updateLoan(id, body, session.user.id)
+    if (body.newFirstPendingDate !== undefined) {
+      const parsed = new Date(body.newFirstPendingDate)
+      if (isNaN(parsed.getTime())) {
+        return NextResponse.json(
+          { error: 'Fecha de primer pago inválida' },
+          { status: 400 }
+        )
+      }
+    }
+
+    if (body.pendingMonths !== undefined) {
+      const months = body.pendingMonths
+      if (!Number.isInteger(months) || months < 1 || months > 120) {
+        return NextResponse.json(
+          { error: 'El número de meses pendientes debe ser un entero entre 1 y 120' },
+          { status: 400 }
+        )
+      }
+    }
+
+    const updatedLoan = await LoanService.updateLoan(id, {
+      interestRate:        body.interestRate,
+      newFirstPendingDate: body.newFirstPendingDate ? new Date(body.newFirstPendingDate) : undefined,
+      pendingMonths:       body.pendingMonths,
+      notes:               body.notes,
+      clientInstructions:  body.clientInstructions,
+    }, session.user.id)
 
     return NextResponse.json(updatedLoan)
   } catch (error: unknown) {

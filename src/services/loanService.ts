@@ -6,6 +6,7 @@ import {
   AmortizationType,
   Prisma,
 } from '@prisma/client'
+import { addMonths, addWeeks } from 'date-fns'
 import { calculateLoanSummary } from '@/lib/calculations/amortization'
 import { getInstallmentComponentBalances } from '@/lib/calculations/allocation'
 import { TRANSACTION_CONFIG } from '@/lib/db/transactionConfig'
@@ -13,6 +14,16 @@ import {
   normalizeInterestRateForInput,
   normalizeInterestRateForStorage,
 } from '@/lib/utils/interestRate'
+
+/** Avanza una fecha según la frecuencia del préstamo */
+function addPeriod(date: Date, frequency: PaymentFrequency, periods: number): Date {
+  switch (frequency) {
+    case 'WEEKLY':    return addWeeks(date, periods)
+    case 'BIWEEKLY':  return addWeeks(date, periods * 2)
+    case 'QUARTERLY': return addMonths(date, periods * 3)
+    default:          return addMonths(date, periods) // MONTHLY
+  }
+}
 
 export interface CreateLoanData {
   clientId: string
@@ -516,15 +527,25 @@ export class LoanService {
 
   // ---------------------------------------------------------------------------
   // Edición de préstamo activo — solo ADMIN
-  // Recalcula las cuotas PENDING con la nueva tasa. Las cuotas PAID/PARTIAL/OVERDUE
-  // no se tocan para preservar la integridad de los pagos ya registrados.
+  //
+  // Campos editables:
+  //   · interestRate      — nueva tasa (% humano, ej: 10)
+  //   · newFirstPendingDate — nueva fecha para la primera cuota PENDIENTE
+  //   · pendingMonths     — nuevo número de cuotas PENDIENTES (aumentar o reducir)
+  //   · notes / clientInstructions — metadata sin recalculo
+  //
+  // Las cuotas PAID / PARTIAL / OVERDUE nunca se tocan.
+  // loan.firstDueDate no se modifica (campo histórico).
+  // Todo el recálculo financiero ocurre en una transacción CRITICAL con AuditLog.
   // ---------------------------------------------------------------------------
   static async updateLoan(
     id: string,
     data: {
-      interestRate?: number   // % humano (ej: 10 = 10%)
-      notes?: string | null
-      clientInstructions?: string | null
+      interestRate?:        number       // % humano (ej: 10 = 10%)
+      newFirstPendingDate?: Date | string // fecha ISO o Date para la 1ª cuota PENDING
+      pendingMonths?:       number       // cuántas cuotas PENDING deben quedar
+      notes?:               string | null
+      clientInstructions?:  string | null
     },
     userId: string
   ) {
@@ -534,9 +555,16 @@ export class LoanService {
 
     const oldInterestRate  = Number(loan.interestRate)
     const oldTotalInterest = Number(loan.totalInterest)
+    const oldFinalDueDate  = loan.finalDueDate
+    const oldTermMonths    = loan.termMonths
 
-    // ── Caso simple: solo se actualizan notas / instrucciones ──────────────────
-    if (data.interestRate === undefined) {
+    const hasFinancialChange =
+      data.interestRate        !== undefined ||
+      data.newFirstPendingDate !== undefined ||
+      data.pendingMonths       !== undefined
+
+    // ── Metadata-only: notas e instrucciones ──────────────────────────────────
+    if (!hasFinancialChange) {
       await prisma.loan.update({
         where: { id },
         data: {
@@ -544,29 +572,23 @@ export class LoanService {
           ...(data.clientInstructions !== undefined && { clientInstructions: data.clientInstructions }),
         },
       })
-
       await prisma.auditLog.create({
         data: {
           userId,
           action: 'UPDATE',
           entityType: 'loans',
           entityId: id,
-          oldValue: { notes: loan.notes, clientInstructions: loan.clientInstructions },
-          newValue: { notes: data.notes, clientInstructions: data.clientInstructions },
+          oldValue: { notes: loan.notes, clientInstructions: loan.clientInstructions } as Prisma.InputJsonObject,
+          newValue: { notes: data.notes ?? loan.notes, clientInstructions: data.clientInstructions ?? loan.clientInstructions } as Prisma.InputJsonObject,
         },
       })
-
       return await this.getById(id)
     }
 
-    // ── Caso con nueva tasa: recalcular cuotas PENDING ─────────────────────────
-    const newStoredRate = normalizeInterestRateForStorage(data.interestRate, loan.interestType)
-    const calcRate      = normalizeInterestRateForInput(newStoredRate, loan.interestType)
-
-    // Solo tocamos cuotas PENDING (sin pagos vinculados — es seguro borrarlas)
-    const pendingInstallments = loan.installments.filter(
-      inst => inst.status === 'PENDING'
-    )
+    // ── Recálculo financiero ──────────────────────────────────────────────────
+    const pendingInstallments = loan.installments
+      .filter(inst => inst.status === 'PENDING')
+      .sort((a, b) => a.installmentNumber - b.installmentNumber)
 
     if (pendingInstallments.length === 0) {
       throw new Error(
@@ -574,41 +596,83 @@ export class LoanService {
       )
     }
 
-    // Ordenar por número de cuota para tomar la primera fecha
-    pendingInstallments.sort((a, b) => a.installmentNumber - b.installmentNumber)
-    const firstPendingNumber  = pendingInstallments[0].installmentNumber
-    const firstPendingDueDate = pendingInstallments[0].dueDate
-    const outstandingPrincipal = Number(loan.outstandingPrincipal)
+    const paidInstallments = loan.installments.filter(
+      inst => inst.status === 'PAID'
+    )
 
-    // Calcular nuevo cronograma solo para las cuotas pendientes
+    // ── Parámetros resultantes del recálculo ──────────────────────────────────
+
+    // Tasa: usar la nueva si se proporcionó, si no mantener la actual
+    const newStoredRate = data.interestRate !== undefined
+      ? normalizeInterestRateForStorage(data.interestRate, loan.interestType)
+      : Number(loan.interestRate)
+    const calcRate = normalizeInterestRateForInput(newStoredRate, loan.interestType)
+
+    // Fecha inicial de las nuevas cuotas PENDING
+    const firstPendingDueDate = data.newFirstPendingDate
+      ? new Date(data.newFirstPendingDate)
+      : pendingInstallments[0].dueDate
+
+    // Número de cuotas PENDING resultantes
+    const newPendingCount = data.pendingMonths !== undefined
+      ? data.pendingMonths
+      : pendingInstallments.length
+
+    if (newPendingCount < 1) {
+      throw new Error('Debe quedar al menos 1 cuota pendiente para poder completar el préstamo.')
+    }
+
+    const maxReducible = pendingInstallments.length
+    // Permitir aumentar sin límite estricto; reducir hasta 1
+    if (newPendingCount < 1 || newPendingCount > 120) {
+      throw new Error('El número de cuotas pendientes debe estar entre 1 y 120.')
+    }
+
+    // Validar que la nueva fecha no sea anterior a la última cuota pagada
+    if (paidInstallments.length > 0 && data.newFirstPendingDate) {
+      const lastPaidDate = paidInstallments
+        .sort((a, b) => a.installmentNumber - b.installmentNumber)
+        .at(-1)!.dueDate
+      if (firstPendingDueDate <= lastPaidDate) {
+        throw new Error(
+          'La nueva fecha del primer pago pendiente debe ser posterior a la última cuota ya pagada.'
+        )
+      }
+    }
+
+    // ── Generar nuevo cronograma PENDING con calculateLoanSummary ─────────────
+    // (usa el mismo engine que la creación original para garantizar consistencia)
     const { installments: newSchedule, summary } = calculateLoanSummary({
-      principalAmount:  outstandingPrincipal,
+      principalAmount:  Number(loan.outstandingPrincipal),
       amortizationType: loan.amortizationType,
       interestType:     loan.interestType,
       interestRate:     calcRate,
-      termMonths:       pendingInstallments.length,
+      termMonths:       newPendingCount,
       paymentFrequency: loan.paymentFrequency,
       firstDueDate:     firstPendingDueDate,
     })
 
-    // Interés total nuevo = interés ya pagado/vencido + interés nuevo proyectado
+    // Totales actualizados
     const nonPendingInterest = loan.installments
       .filter(inst => inst.status !== 'PENDING')
       .reduce((sum, inst) => sum + Number(inst.interestAmount), 0)
     const newTotalInterest = Number((nonPendingInterest + summary.totalInterest).toFixed(2))
     const newFinalDueDate  = newSchedule[newSchedule.length - 1].dueDate
+    const newTermMonths    = paidInstallments.length + newPendingCount
+    const firstPendingNum  = pendingInstallments[0].installmentNumber
 
+    // ── Transacción atómica CRITICAL ─────────────────────────────────────────
     await prisma.$transaction(async tx => {
-      // 1. Borrar solo cuotas PENDING (sin payment allocations — operación segura)
+      // 1. Borrar SOLO cuotas PENDING (no tienen payment allocations — 100% seguro)
       await tx.installment.deleteMany({
         where: { loanId: id, status: 'PENDING' },
       })
 
-      // 2. Insertar nuevo cronograma con los mismos números de cuota
+      // 2. Insertar nuevo cronograma comenzando desde el mismo número de cuota
       await tx.installment.createMany({
         data: newSchedule.map((inst, idx) => ({
           loanId:            id,
-          installmentNumber: firstPendingNumber + idx,
+          installmentNumber: firstPendingNum + idx,
           dueDate:           inst.dueDate,
           principalAmount:   inst.principalAmount,
           interestAmount:    inst.interestAmount,
@@ -623,33 +687,51 @@ export class LoanService {
       await tx.loan.update({
         where: { id },
         data: {
-          interestRate:       newStoredRate,
-          totalInterest:      newTotalInterest,
-          finalDueDate:       newFinalDueDate,
+          interestRate:  newStoredRate,
+          totalInterest: newTotalInterest,
+          finalDueDate:  newFinalDueDate,
+          termMonths:    newTermMonths,
           ...(data.notes !== undefined             && { notes: data.notes }),
           ...(data.clientInstructions !== undefined && { clientInstructions: data.clientInstructions }),
         },
       })
 
-      // 4. AuditLog dentro de la transacción para consistencia total
+      // 4. AuditLog dentro de la transacción — consistencia garantizada
+      const oldVal: Record<string, unknown> = {
+        totalInterest: oldTotalInterest,
+        finalDueDate:  oldFinalDueDate?.toISOString(),
+        termMonths:    oldTermMonths,
+      }
+      const newVal: Record<string, unknown> = {
+        totalInterest:             newTotalInterest,
+        finalDueDate:              newFinalDueDate.toISOString(),
+        termMonths:                newTermMonths,
+        pendingInstallmentsCount:  newSchedule.length,
+        recalculatedFrom:          `Cuota #${firstPendingNum}`,
+      }
+
+      if (data.interestRate !== undefined) {
+        oldVal.interestRate = oldInterestRate
+        newVal.interestRate = newStoredRate
+        newVal.interestRateHuman = `${data.interestRate}%`
+      }
+      if (data.newFirstPendingDate !== undefined) {
+        oldVal.firstPendingDate = pendingInstallments[0].dueDate.toISOString()
+        newVal.firstPendingDate = firstPendingDueDate.toISOString()
+      }
+      if (data.pendingMonths !== undefined) {
+        oldVal.pendingInstallments = maxReducible
+        newVal.pendingInstallments = newPendingCount
+      }
+
       await tx.auditLog.create({
         data: {
           userId,
           action: 'UPDATE',
           entityType: 'loans',
           entityId: id,
-          oldValue: {
-            interestRate:              oldInterestRate,
-            totalInterest:             oldTotalInterest,
-            pendingInstallmentsCount:  pendingInstallments.length,
-          },
-          newValue: {
-            interestRate:              newStoredRate,
-            interestRateHuman:         `${data.interestRate}%`,
-            totalInterest:             newTotalInterest,
-            pendingInstallmentsCount:  newSchedule.length,
-            recalculatedFrom:          `Cuota #${firstPendingNumber}`,
-          },
+          oldValue: oldVal as Prisma.InputJsonObject,
+          newValue: newVal as Prisma.InputJsonObject,
         },
       })
     }, TRANSACTION_CONFIG.CRITICAL)
