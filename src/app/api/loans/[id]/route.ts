@@ -68,6 +68,7 @@ export async function PATCH(
 
     const { id } = await params
     const body = await request.json() as {
+      principalAmount?:     number
       interestRate?:        number
       newFirstPendingDate?: string
       pendingMonths?:       number
@@ -76,6 +77,16 @@ export async function PATCH(
     }
 
     // Validaciones de campos financieros
+    if (body.principalAmount !== undefined) {
+      const amount = body.principalAmount
+      if (typeof amount !== 'number' || isNaN(amount) || amount <= 0) {
+        return NextResponse.json(
+          { error: 'El monto del crédito debe ser un número mayor a 0' },
+          { status: 400 }
+        )
+      }
+    }
+
     if (body.interestRate !== undefined) {
       const rate = body.interestRate
       if (typeof rate !== 'number' || isNaN(rate) || rate <= 0 || rate > 100) {
@@ -107,6 +118,7 @@ export async function PATCH(
     }
 
     const updatedLoan = await LoanService.updateLoan(id, {
+      principalAmount:     body.principalAmount,
       interestRate:        body.interestRate,
       newFirstPendingDate: body.newFirstPendingDate ? new Date(body.newFirstPendingDate) : undefined,
       pendingMonths:       body.pendingMonths,

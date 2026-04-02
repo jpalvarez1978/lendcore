@@ -126,6 +126,9 @@ export function EditLoanModal({
   const [error, setError]           = useState<string | null>(null)
   const [success, setSuccess]       = useState(false)
 
+  // ── Monto del crédito ─────────────────────────────────────────────────────
+  const [newPrincipal, setNewPrincipal] = useState<string>(String(principalAmount))
+
   // ── Tasa ──────────────────────────────────────────────────────────────────
   const isPercentage     = interestType !== 'FIXED_AMOUNT'
   const currentRateHuman = toHumanRate(currentInterestRate)
@@ -146,20 +149,27 @@ export function EditLoanModal({
   const [clientInstr, setClientInstr] = useState(currentClientInstructions ?? '')
 
   // ── Cálculo de cambios (para el diff) ─────────────────────────────────────
-  const parsedRate    = parseFloat(newRate)
-  const parsedMonths  = parseInt(newPendingMonths)
-  const rateChanged   = isPercentage && !isNaN(parsedRate) && parsedRate !== currentRateHuman
-  const dateChanged   = newFirstDate !== toInputDate(firstPendingDueDate) && newFirstDate !== ''
-  const monthsChanged = !isNaN(parsedMonths) && parsedMonths !== pendingInstallmentsCount
+  const parsedPrincipal   = parseFloat(newPrincipal)
+  const parsedRate        = parseFloat(newRate)
+  const parsedMonths      = parseInt(newPendingMonths)
+  const principalChanged  = !isNaN(parsedPrincipal) && parsedPrincipal > 0 && parsedPrincipal !== principalAmount
+  const rateChanged       = isPercentage && !isNaN(parsedRate) && parsedRate !== currentRateHuman
+  const dateChanged       = newFirstDate !== toInputDate(firstPendingDueDate) && newFirstDate !== ''
+  const monthsChanged     = !isNaN(parsedMonths) && parsedMonths !== pendingInstallmentsCount
 
-  const hasFinancialChange = rateChanged || dateChanged || monthsChanged
+  // Capital pendiente efectivo para preview de interés (refleja la corrección)
+  const effectiveOutstanding = principalChanged
+    ? outstandingPrincipal + (parsedPrincipal - principalAmount)
+    : outstandingPrincipal
+
+  const hasFinancialChange = principalChanged || rateChanged || dateChanged || monthsChanged
   const hasAnyChange       =
     hasFinancialChange ||
     notes.trim()      !== (currentNotes ?? '').trim() ||
     clientInstr.trim() !== (currentClientInstructions ?? '').trim()
 
   const newMonthlyInterest = isPercentage && !isNaN(parsedRate)
-    ? outstandingPrincipal * (parsedRate / 100)
+    ? effectiveOutstanding * (parsedRate / 100)
     : null
   const oldMonthlyInterest = isPercentage
     ? outstandingPrincipal * (currentRateHuman / 100)
@@ -173,6 +183,10 @@ export function EditLoanModal({
 
   // ── Validación antes de pasar al paso 2 ──────────────────────────────────
   const validate = (): string | null => {
+    if (principalChanged || newPrincipal !== String(principalAmount)) {
+      if (isNaN(parsedPrincipal) || parsedPrincipal <= 0)
+        return 'El monto del crédito debe ser un número mayor a 0'
+    }
     if (isPercentage && rateChanged) {
       if (isNaN(parsedRate) || parsedRate <= 0 || parsedRate > 100)
         return 'La tasa debe estar entre 0,01% y 100%'
@@ -200,9 +214,10 @@ export function EditLoanModal({
     setError(null)
     const payload: Record<string, unknown> = {}
 
-    if (rateChanged)    payload.interestRate        = parsedRate
-    if (dateChanged)    payload.newFirstPendingDate  = new Date(newFirstDate).toISOString()
-    if (monthsChanged)  payload.pendingMonths        = parsedMonths
+    if (principalChanged) payload.principalAmount      = parsedPrincipal
+    if (rateChanged)      payload.interestRate         = parsedRate
+    if (dateChanged)      payload.newFirstPendingDate  = new Date(newFirstDate).toISOString()
+    if (monthsChanged)    payload.pendingMonths        = parsedMonths
     payload.notes              = notes.trim() || null
     payload.clientInstructions = clientInstr.trim() || null
 
@@ -231,6 +246,7 @@ export function EditLoanModal({
     setStep(1)
     setError(null)
     setSuccess(false)
+    setNewPrincipal(String(principalAmount))
     setNewRate(String(currentRateHuman))
     setNewFirstDate(toInputDate(firstPendingDueDate))
     setNewPendingMonths(String(pendingInstallmentsCount))
@@ -288,6 +304,32 @@ export function EditLoanModal({
             </DialogHeader>
 
             <div className="space-y-5 py-2 max-h-[60vh] overflow-y-auto pr-1">
+
+              {/* ── Monto del Crédito ────────────────────────────────────── */}
+              <div className="space-y-2">
+                <Label htmlFor="edit-principal" className="font-semibold">
+                  Monto del Crédito (€)
+                </Label>
+                <Input
+                  id="edit-principal"
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={newPrincipal}
+                  onChange={e => setNewPrincipal(e.target.value)}
+                />
+                {principalChanged && (
+                  <p className="text-xs font-semibold text-blue-600">
+                    → Capital pendiente ajustado a {formatCurrency(Math.max(0, effectiveOutstanding))}
+                    <span className="text-muted-foreground font-normal ml-1">
+                      (antes: {formatCurrency(outstandingPrincipal)})
+                    </span>
+                  </p>
+                )}
+                <p className="text-xs text-muted-foreground">
+                  Corrección del monto original en caso de error de tipeo. Recalcula las cuotas pendientes.
+                </p>
+              </div>
 
               {/* ── Tasa de interés ──────────────────────────────────────── */}
               {isPercentage && (
@@ -433,6 +475,12 @@ export function EditLoanModal({
                     </tr>
                   </thead>
                   <tbody>
+                    <DiffRow
+                      label="Monto Prestado"
+                      before={formatCurrency(principalAmount)}
+                      after={formatCurrency(isNaN(parsedPrincipal) ? principalAmount : parsedPrincipal)}
+                      changed={principalChanged}
+                    />
                     {isPercentage && (
                       <DiffRow
                         label="Tasa de interés"

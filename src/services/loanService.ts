@@ -541,6 +541,7 @@ export class LoanService {
   static async updateLoan(
     id: string,
     data: {
+      principalAmount?:     number       // Corrección del monto original prestado
       interestRate?:        number       // % humano (ej: 10 = 10%)
       newFirstPendingDate?: Date | string // fecha ISO o Date para la 1ª cuota PENDING
       pendingMonths?:       number       // cuántas cuotas PENDING deben quedar
@@ -553,12 +554,14 @@ export class LoanService {
     if (!loan) throw new Error('Préstamo no encontrado')
     if (loan.status !== 'ACTIVE') throw new Error('Solo se pueden editar préstamos activos')
 
+    const oldPrincipalAmount = Number(loan.principalAmount)
     const oldInterestRate  = Number(loan.interestRate)
     const oldTotalInterest = Number(loan.totalInterest)
     const oldFinalDueDate  = loan.finalDueDate
     const oldTermMonths    = loan.termMonths
 
     const hasFinancialChange =
+      data.principalAmount     !== undefined ||
       data.interestRate        !== undefined ||
       data.newFirstPendingDate !== undefined ||
       data.pendingMonths       !== undefined
@@ -628,6 +631,17 @@ export class LoanService {
       throw new Error('El número de cuotas pendientes debe estar entre 1 y 120.')
     }
 
+    // ── Ajuste de capital si el monto original fue corregido ──────────────────
+    const principalDelta = data.principalAmount !== undefined
+      ? data.principalAmount - oldPrincipalAmount
+      : 0
+    const newOutstandingPrincipal = Number(loan.outstandingPrincipal) + principalDelta
+    if (principalDelta !== 0 && newOutstandingPrincipal <= 0) {
+      throw new Error(
+        'El nuevo monto del crédito no puede ser menor que el capital ya cobrado.'
+      )
+    }
+
     // Validar que la nueva fecha no sea anterior a la última cuota pagada
     if (paidInstallments.length > 0 && data.newFirstPendingDate) {
       const lastPaidDate = paidInstallments
@@ -643,7 +657,7 @@ export class LoanService {
     // ── Generar nuevo cronograma PENDING con calculateLoanSummary ─────────────
     // (usa el mismo engine que la creación original para garantizar consistencia)
     const { installments: newSchedule, summary } = calculateLoanSummary({
-      principalAmount:  Number(loan.outstandingPrincipal),
+      principalAmount:  Math.max(0, newOutstandingPrincipal),
       amortizationType: loan.amortizationType,
       interestType:     loan.interestType,
       interestRate:     calcRate,
@@ -687,6 +701,10 @@ export class LoanService {
       await tx.loan.update({
         where: { id },
         data: {
+          ...(data.principalAmount !== undefined && {
+            principalAmount:      data.principalAmount,
+            outstandingPrincipal: Math.max(0, newOutstandingPrincipal),
+          }),
           interestRate:  newStoredRate,
           totalInterest: newTotalInterest,
           finalDueDate:  newFinalDueDate,
@@ -708,6 +726,12 @@ export class LoanService {
         termMonths:                newTermMonths,
         pendingInstallmentsCount:  newSchedule.length,
         recalculatedFrom:          `Cuota #${firstPendingNum}`,
+      }
+
+      if (data.principalAmount !== undefined) {
+        oldVal.principalAmount      = oldPrincipalAmount
+        newVal.principalAmount      = data.principalAmount
+        newVal.outstandingPrincipal = newOutstandingPrincipal
       }
 
       if (data.interestRate !== undefined) {
