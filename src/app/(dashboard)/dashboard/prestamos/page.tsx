@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { Plus } from 'lucide-react'
 import { Suspense } from 'react'
+import { LoanStatus } from '@prisma/client'
 import { Button } from '@/components/ui/button'
 import { LoansExplorer } from '@/components/loans/LoansExplorer'
 import { auth } from '@/lib/auth'
@@ -9,10 +10,15 @@ import { LoanService } from '@/services/loanService'
 import { decryptSafe } from '@/lib/security/encryption'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Configuración de caché de Next.js - revalidar cada 30 segundos
-export const revalidate = 30
+// Página completamente dinámica — los searchParams cambian en cada request
+export const dynamic = 'force-dynamic'
 
-// Componente de loading skeleton
+interface PageSearchParams {
+  q?:      string
+  status?: string
+  page?:   string
+}
+
 function LoansLoadingSkeleton() {
   return (
     <div className="space-y-4">
@@ -26,22 +32,35 @@ function LoansLoadingSkeleton() {
   )
 }
 
-// Componente asíncrono para cargar préstamos
-async function LoansContent() {
+async function LoansContent({ searchParams }: { searchParams: PageSearchParams }) {
   const session = await auth()
 
-  // Cargar solo los primeros 20 préstamos para velocidad inicial
-  const loansResult = await LoanService.getAll({ pageSize: 20 })
+  // ── Parsear y validar searchParams ────────────────────────────────────────
+  const search   = searchParams.q?.trim() || undefined
+  const rawStatus = searchParams.status
+  const status   = rawStatus && Object.values(LoanStatus).includes(rawStatus as LoanStatus)
+    ? (rawStatus as LoanStatus)
+    : undefined
+  const page = Math.max(1, parseInt(searchParams.page ?? '1') || 1)
+
+  // ── Query con búsqueda + filtro + paginación en servidor ──────────────────
+  const loansResult = await LoanService.getAll({
+    search,
+    status,
+    page,
+    pageSize: 25,
+  })
 
   const canCreateLoan =
     session?.user?.role ? hasPermission(session.user.role, 'LOANS_CREATE') : false
   const canRegisterPayment =
     session?.user?.role ? hasPermission(session.user.role, 'PAYMENTS_REGISTER') : false
 
+  // Desencriptar taxId antes de pasar al cliente
   const serializedLoans = loansResult.data.map(loan => ({
-    id: loan.id,
-    loanNumber: loan.loanNumber,
-    status: loan.status,
+    id:            loan.id,
+    loanNumber:    loan.loanNumber,
+    status:        loan.status,
     clientName:
       loan.client.type === 'INDIVIDUAL'
         ? `${loan.client.individualProfile?.firstName || ''} ${loan.client.individualProfile?.lastName || ''}`.trim()
@@ -51,26 +70,35 @@ async function LoansContent() {
         ? decryptSafe(loan.client.individualProfile?.taxId)
         : decryptSafe(loan.client.businessProfile?.taxId),
     principalAmount: Number(loan.principalAmount),
-    totalPending: Number(loan.totalPending || 0),
-    totalInterest: Number(loan.totalInterest || 0),
-    interestRate: Number(loan.interestRate),
-    interestType: loan.interestType,
-    termMonths: loan.termMonths,
+    totalPending:    Number(loan.totalPending   || 0),
+    totalInterest:   Number(loan.totalInterest  || 0),
+    interestRate:    Number(loan.interestRate),
+    interestType:    loan.interestType,
+    termMonths:      loan.termMonths,
     disbursementDate: loan.disbursementDate.toISOString(),
   }))
 
   return (
     <LoansExplorer
       loans={serializedLoans}
+      pagination={loansResult.pagination}
+      stats={loansResult.stats}
+      currentSearch={search ?? ''}
+      currentStatus={rawStatus ?? ''}
       canCreateLoan={canCreateLoan}
       canRegisterPayment={canRegisterPayment}
     />
   )
 }
 
-export default async function PrestamosPage() {
-  const session = await auth()
-  const canCreateLoan =
+export default async function PrestamosPage({
+  searchParams,
+}: {
+  searchParams: Promise<PageSearchParams>
+}) {
+  const session           = await auth()
+  const resolvedParams    = await searchParams
+  const canCreateLoan     =
     session?.user?.role ? hasPermission(session.user.role, 'LOANS_CREATE') : false
 
   return (
@@ -90,9 +118,17 @@ export default async function PrestamosPage() {
         )}
       </div>
 
-      {/* Usar Suspense para streaming - carga el header primero, luego los datos */}
-      <Suspense fallback={<LoansLoadingSkeleton />}>
-        <LoansContent />
+      {/*
+        key={JSON.stringify(resolvedParams)} fuerza un nuevo Suspense boundary
+        cada vez que cambian los params, mostrando el skeleton mientras carga la
+        nueva página/búsqueda. Sin esto, la UI anterior permanece visible hasta
+        que los nuevos datos lleguen sin ningún indicador de carga.
+      */}
+      <Suspense
+        key={JSON.stringify(resolvedParams)}
+        fallback={<LoansLoadingSkeleton />}
+      >
+        <LoansContent searchParams={resolvedParams} />
       </Suspense>
     </div>
   )

@@ -142,65 +142,77 @@ export class LoanService {
    * Obtener todos los préstamos con filtros - OPTIMIZADO
    */
   static async getAll(filters?: {
-    status?: LoanStatus
+    search?:   string     // búsqueda por número de préstamo o nombre de cliente
+    status?:   LoanStatus
     clientId?: string
-    page?: number
+    page?:     number
     pageSize?: number
   }) {
     const where: Prisma.LoanWhereInput = {}
 
-    if (filters?.status) where.status = filters.status
+    if (filters?.status)   where.status   = filters.status
     if (filters?.clientId) where.clientId = filters.clientId
 
-    const page = filters?.page || 1
-    const pageSize = filters?.pageSize || 20 // Reducido de 50 a 20 para carga más rápida
-    const skip = (page - 1) * pageSize
+    // ── Búsqueda en servidor ─────────────────────────────────────────────────
+    // Busca por: número de préstamo, firstName, lastName (individual), businessName.
+    // taxId está encriptado en BD y no puede buscarse con LIKE.
+    if (filters?.search?.trim()) {
+      const s = filters.search.trim()
+      where.OR = [
+        { loanNumber: { contains: s, mode: 'insensitive' } },
+        { client: { individualProfile: { firstName: { contains: s, mode: 'insensitive' } } } },
+        { client: { individualProfile: { lastName:  { contains: s, mode: 'insensitive' } } } },
+        { client: { businessProfile:   { businessName: { contains: s, mode: 'insensitive' } } } },
+      ]
+    }
 
-    const [loans, total] = await Promise.all([
-      prisma.loan.findMany({
-        where,
+    const page     = filters?.page     || 1
+    const pageSize = filters?.pageSize || 25
+    const skip     = (page - 1) * pageSize
+
+    const select = {
+      id: true,
+      loanNumber: true,
+      status: true,
+      principalAmount: true,
+      totalInterest: true,
+      interestRate: true,
+      interestType: true,
+      termMonths: true,
+      disbursementDate: true,
+      outstandingPrincipal: true,
+      client: {
         select: {
-          id: true,
-          loanNumber: true,
-          status: true,
-          principalAmount: true,
-          totalInterest: true,
-          interestRate: true,
-          interestType: true,
-          termMonths: true,
-          disbursementDate: true,
-          outstandingPrincipal: true, // Ya calculado en DB
-          client: {
-            select: {
-              type: true,
-              individualProfile: {
-                select: {
-                  firstName: true,
-                  lastName: true,
-                  taxId: true,
-                },
-              },
-              businessProfile: {
-                select: {
-                  businessName: true,
-                  taxId: true,
-                },
-              },
-            },
+          type: true,
+          individualProfile: {
+            select: { firstName: true, lastName: true, taxId: true },
+          },
+          businessProfile: {
+            select: { businessName: true, taxId: true },
           },
         },
-        orderBy: { createdAt: 'desc' },
-        skip,
-        take: pageSize,
-      }),
+      },
+    } as const
+
+    // ── 4 queries en paralelo ─────────────────────────────────────────────────
+    // (1) página actual  (2) total filtrado  (3) sumas globales  (4) conteo por estado global
+    const [loans, total, globalAgg, globalStatusGroups] = await Promise.all([
+      prisma.loan.findMany({ where, select, orderBy: { createdAt: 'desc' }, skip, take: pageSize }),
       prisma.loan.count({ where }),
+      prisma.loan.aggregate({
+        _sum: { principalAmount: true, outstandingPrincipal: true, totalInterest: true },
+      }),
+      prisma.loan.groupBy({ by: ['status'], _count: { _all: true } }),
     ])
 
-    // Usar outstandingPrincipal que ya está calculado en la DB
     const loansWithPending = loans.map(loan => ({
       ...loan,
       totalPending: Number(loan.outstandingPrincipal),
     }))
+
+    const totalCount     = globalStatusGroups.reduce((s, g) => s + g._count._all, 0)
+    const activeCount    = globalStatusGroups.find(g => g.status === 'ACTIVE')?._count._all    ?? 0
+    const defaultedCount = globalStatusGroups.find(g => g.status === 'DEFAULTED')?._count._all ?? 0
 
     return {
       data: loansWithPending,
@@ -209,6 +221,16 @@ export class LoanService {
         pageSize,
         total,
         totalPages: Math.ceil(total / pageSize),
+      },
+      // Estadísticas GLOBALES del portafolio (siempre sin filtros, para que las
+      // tarjetas de métricas muestren la visión completa independientemente de la búsqueda)
+      stats: {
+        totalPrincipal:  Number(globalAgg._sum.principalAmount    ?? 0),
+        totalOutstanding: Number(globalAgg._sum.outstandingPrincipal ?? 0),
+        totalInterest:   Number(globalAgg._sum.totalInterest      ?? 0),
+        activeCount,
+        defaultedCount,
+        totalCount,
       },
     }
   }

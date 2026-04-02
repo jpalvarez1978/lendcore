@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
     if (rateLimitResponse) return rateLimitResponse
 
     const { searchParams } = new URL(request.url)
+    const search      = searchParams.get('q')?.trim() || undefined
     const statusParam = searchParams.get('status')
     const status =
       statusParam && Object.values(LoanStatus).includes(statusParam as LoanStatus)
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Estado de préstamo inválido' }, { status: 400 })
     }
 
-    const result = await LoanService.getAll({ status, clientId, page, pageSize })
+    const result = await LoanService.getAll({ search, status, clientId, page, pageSize })
 
     return NextResponse.json(result)
   } catch (error: unknown) {
