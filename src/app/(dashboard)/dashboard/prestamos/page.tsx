@@ -119,15 +119,12 @@ export default async function PrestamosPage({
       </div>
 
       {/*
-        key={JSON.stringify(resolvedParams)} fuerza un nuevo Suspense boundary
-        cada vez que cambian los params, mostrando el skeleton mientras carga la
-        nueva página/búsqueda. Sin esto, la UI anterior permanece visible hasta
-        que los nuevos datos lleguen sin ningún indicador de carga.
+        SIN key en Suspense: React mantiene el componente montado entre
+        navegaciones y usa useTransition (isPending) para el indicador de carga.
+        Con key, el componente se re-montaba en cada cambio de filtro/página,
+        lo que causaba que el debounce de búsqueda reseteara el parámetro page.
       */}
-      <Suspense
-        key={JSON.stringify(resolvedParams)}
-        fallback={<LoansLoadingSkeleton />}
-      >
+      <Suspense fallback={<LoansLoadingSkeleton />}>
         <LoansContent searchParams={resolvedParams} />
       </Suspense>
     </div>

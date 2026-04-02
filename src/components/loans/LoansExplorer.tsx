@@ -122,11 +122,26 @@ export function LoansExplorer({
 
   // inputValue se actualiza en cada keystroke (UX inmediato).
   // La URL se actualiza con debounce para no lanzar un request por cada letra.
-  const [inputValue,     setInputValue]     = useState(currentSearch)
+  const [inputValue,      setInputValue]      = useState(currentSearch)
   const [showSuggestions, setShowSuggestions] = useState(false)
 
-  // Sincronizar si el servidor cambia currentSearch (ej. navegación back)
-  useEffect(() => { setInputValue(currentSearch) }, [currentSearch])
+  // Guards para el debounce:
+  // · isMountedRef: evita que el debounce se dispare en el primer render
+  // · skipNextDebounceRef: evita que el debounce se dispare cuando sincronizamos
+  //   inputValue desde los props del servidor (back/forward navigation)
+  const isMountedRef         = useRef(false)
+  const skipNextDebounceRef  = useRef(false)
+
+  // Sincronizar inputValue cuando el servidor cambia currentSearch
+  // (navegación back/forward o URL directa). Marca el flag para que el debounce
+  // no reaccione a este cambio de estado (evitaría push duplicado al mismo URL).
+  useEffect(() => {
+    if (inputValue !== currentSearch) {
+      skipNextDebounceRef.current = true
+      setInputValue(currentSearch)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSearch])
 
   // Cerrar sugerencias al hacer click fuera
   useEffect(() => {
@@ -140,25 +155,40 @@ export function LoansExplorer({
   }, [])
 
   // ── Actualizar URL con los nuevos params ────────────────────────────────────
+  // Usa replace (no push) para no ensuciar el historial con cada keystroke/página.
+  // scroll: false para búsqueda/filtros — el usuario no quiere saltar al top al tipear.
   const updateParams = useCallback(
-    (updates: Record<string, string | null>, resetPage = true) => {
+    (updates: Record<string, string | null>, resetPage = true, scrollTop = false) => {
       const params = new URLSearchParams(searchParams.toString())
       for (const [key, value] of Object.entries(updates)) {
         if (value === null || value === '') params.delete(key)
         else params.set(key, value)
       }
-      if (resetPage) params.delete('page') // siempre volver a pág 1 al filtrar
-      startTransition(() => router.push(`?${params.toString()}`))
+      if (resetPage) params.delete('page')
+      startTransition(() =>
+        router.replace(`?${params.toString()}`, { scroll: scrollTop })
+      )
     },
     [searchParams, router]
   )
 
-  // Ref para debounce — evita stale closure sin añadir updateParams como dep del timer
+  // Ref para debounce — mantiene siempre la versión más reciente de updateParams
   const updateParamsRef = useRef(updateParams)
   useEffect(() => { updateParamsRef.current = updateParams }, [updateParams])
 
-  // ── Debounce: 350 ms tras el último keystroke → push a URL ─────────────────
+  // ── Debounce: 350 ms tras el último keystroke → replace URL ────────────────
+  // BUG FIX: isMountedRef previene que se dispare en el montaje inicial.
+  // Sin esto, cada vez que el componente montaba (ej. al paginar) el debounce
+  // reseteaba el parámetro 'page' a los 350ms, volviendo siempre a la página 1.
   useEffect(() => {
+    if (!isMountedRef.current) {
+      isMountedRef.current = true
+      return
+    }
+    if (skipNextDebounceRef.current) {
+      skipNextDebounceRef.current = false
+      return
+    }
     const timer = setTimeout(() => {
       updateParamsRef.current({ q: inputValue.trim() || null })
     }, DEBOUNCE_MS)
@@ -175,7 +205,12 @@ export function LoansExplorer({
   }
 
   const handlePageChange = (newPage: number) => {
-    updateParams({ page: newPage <= 1 ? null : String(newPage) }, false)
+    // Scroll al top antes de cambiar de página para UX estándar de paginación
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+    const params = new URLSearchParams(searchParams.toString())
+    if (newPage <= 1) params.delete('page')
+    else params.set('page', String(newPage))
+    startTransition(() => router.replace(`?${params.toString()}`, { scroll: false }))
   }
 
   // ── Derived ────────────────────────────────────────────────────────────────
