@@ -244,168 +244,107 @@ export class ClientService {
   }
 
   /**
-   * Obtener todos los clientes con filtros opcionales y paginación
+   * Obtener todos los clientes con filtros opcionales, paginación y estadísticas globales.
+   *
+   * Las estadísticas (totalCount, individualsCount, etc.) son SIEMPRE globales
+   * (sin filtros de búsqueda/tipo/estado) para que las tarjetas de métricas
+   * muestren la cartera completa independientemente del filtro activo.
    */
   static async getAll(filters?: {
-    type?: ClientType
-    status?: ClientStatus
+    type?:      ClientType
+    status?:    ClientStatus
     riskLevel?: RiskLevel
-    search?: string
-    page?: number
-    pageSize?: number
+    search?:    string
+    page?:      number
+    pageSize?:  number
   }) {
-    const page = filters?.page || 1
-    const pageSize = filters?.pageSize || 50
-    const skip = (page - 1) * pageSize
+    const page     = filters?.page     || 1
+    const pageSize = filters?.pageSize || 25
+    const skip     = (page - 1) * pageSize
 
+    // ── Construir WHERE con filtros activos ──────────────────────────────────
     const where: Prisma.ClientWhereInput = {}
-
-    if (filters?.type) where.type = filters.type
-    if (filters?.status) where.status = filters.status
+    if (filters?.type)      where.type      = filters.type
+    if (filters?.status)    where.status    = filters.status
     if (filters?.riskLevel) where.riskLevel = filters.riskLevel
+
+    // Búsqueda en campos NO encriptados (taxId está encriptado en BD)
+    if (filters?.search?.trim()) {
+      const s = filters.search.trim()
+      where.OR = [
+        { city:       { contains: s, mode: 'insensitive' } },
+        { postalCode: { contains: s } },
+        { individualProfile: { OR: [
+          { firstName:  { contains: s, mode: 'insensitive' } },
+          { lastName:   { contains: s, mode: 'insensitive' } },
+          { occupation: { contains: s, mode: 'insensitive' } },
+        ]}},
+        { businessProfile: { OR: [
+          { businessName: { contains: s, mode: 'insensitive' } },
+          { legalRepName: { contains: s, mode: 'insensitive' } },
+          { industry:     { contains: s, mode: 'insensitive' } },
+        ]}},
+      ]
+    }
 
     const baseInclude = {
       individualProfile: {
-        select: {
-          firstName: true,
-          lastName: true,
-          taxId: true,
-          dateOfBirth: true,
-          occupation: true,
-        },
+        select: { firstName: true, lastName: true, taxId: true, dateOfBirth: true, occupation: true },
       },
       businessProfile: {
-        select: {
-          businessName: true,
-          taxId: true,
-          industry: true,
-        },
+        select: { businessName: true, taxId: true, industry: true },
       },
       _count: {
-        select: {
-          loans: true,
-          creditApplications: true,
-        },
+        select: { loans: true, creditApplications: true },
       },
     } satisfies Prisma.ClientInclude
 
-    // Búsqueda optimizada - NO desencriptar todo
-    if (filters?.search) {
-      const searchLower = filters.search.toLowerCase()
-
-      // Buscar solo por campos NO encriptados
-      const searchWhere: Prisma.ClientWhereInput = {
-        ...where,
-        OR: [
-          { city: { contains: searchLower, mode: 'insensitive' } },
-          { postalCode: { contains: searchLower } },
-          {
-            individualProfile: {
-              OR: [
-                { firstName: { contains: searchLower, mode: 'insensitive' } },
-                { lastName: { contains: searchLower, mode: 'insensitive' } },
-                { occupation: { contains: searchLower, mode: 'insensitive' } },
-              ],
-            },
-          },
-          {
-            businessProfile: {
-              OR: [
-                { businessName: { contains: searchLower, mode: 'insensitive' } },
-                { legalRepName: { contains: searchLower, mode: 'insensitive' } },
-                { industry: { contains: searchLower, mode: 'insensitive' } },
-              ],
-            },
-          },
-        ],
-      }
-
-      const [data, total] = await Promise.all([
-        prisma.client.findMany({
-          where: searchWhere,
-          include: baseInclude,
-          orderBy: { createdAt: 'desc' },
-          take: pageSize,
-          skip,
-        }),
-        prisma.client.count({ where: searchWhere }),
-      ])
-
-      return {
-        data: data.map(client => ({
-          ...client,
-          // NO desencriptar en listado - Solo mostrar parcialmente
-          email: client.email ? '***@ejemplo.es' : null,
-          phone: client.phone ? '6***' : '',
-          address: client.address ? 'Calle ***' : null,
-          // Desencriptar taxId para combobox
-          individualProfile: client.individualProfile
-            ? {
-                ...client.individualProfile,
-                taxId: client.individualProfile.taxId
-                  ? decryptSafe(client.individualProfile.taxId)
-                  : null,
-              }
-            : null,
-          businessProfile: client.businessProfile
-            ? {
-                ...client.businessProfile,
-                taxId: client.businessProfile.taxId
-                  ? decryptSafe(client.businessProfile.taxId)
-                  : null,
-              }
-            : null,
-        })),
-        pagination: {
-          page,
-          pageSize,
-          total,
-          totalPages: Math.ceil(total / pageSize),
-        },
-      }
-    }
-
-    const [data, total] = await Promise.all([
+    // ── 5 queries en paralelo ────────────────────────────────────────────────
+    // (1) página  (2) total filtrado  (3) conteo por tipo (global)
+    // (4) conteo por riesgo (global)  (5) clientes con préstamo activo (global)
+    const [data, total, typeGroups, riskGroups, activeRelCount] = await Promise.all([
       prisma.client.findMany({
         where,
-        include: baseInclude,
-        orderBy: { createdAt: 'desc' },
-        take: pageSize,
+        include:  baseInclude,
+        orderBy:  { createdAt: 'desc' },
+        take:     pageSize,
         skip,
       }),
       prisma.client.count({ where }),
+      prisma.client.groupBy({ by: ['type'],      _count: { _all: true } }),
+      prisma.client.groupBy({ by: ['riskLevel'], _count: { _all: true } }),
+      prisma.client.count({ where: { loans: { some: { status: 'ACTIVE' } } } }),
     ])
 
+    // ── Estadísticas globales del portafolio ─────────────────────────────────
+    const totalCount         = typeGroups.reduce((s, g) => s + g._count._all, 0)
+    const individualsCount   = typeGroups.find(g => g.type      === 'INDIVIDUAL')?._count._all ?? 0
+    const businessesCount    = typeGroups.find(g => g.type      === 'BUSINESS')?._count._all  ?? 0
+    const criticalRiskCount  = riskGroups.find(g => g.riskLevel === 'CRITICAL')?._count._all  ?? 0
+
+    // ── Mapear datos (desencriptar solo taxId para combobox) ─────────────────
+    const mapClient = (client: typeof data[0]) => ({
+      ...client,
+      email:   client.email   ? '***@ejemplo.es' : null,
+      phone:   client.phone   ? '6***'           : '',
+      address: client.address ? 'Calle ***'      : null,
+      individualProfile: client.individualProfile
+        ? { ...client.individualProfile, taxId: client.individualProfile.taxId ? decryptSafe(client.individualProfile.taxId) : null }
+        : null,
+      businessProfile: client.businessProfile
+        ? { ...client.businessProfile,   taxId: client.businessProfile.taxId   ? decryptSafe(client.businessProfile.taxId)   : null }
+        : null,
+    })
+
     return {
-      data: data.map(client => ({
-        ...client,
-        // NO desencriptar en listado - Solo mostrar parcialmente
-        email: client.email ? '***@ejemplo.es' : null,
-        phone: client.phone ? '6***' : '',
-        address: client.address ? 'Calle ***' : null,
-        // Desencriptar taxId para combobox
-        individualProfile: client.individualProfile
-          ? {
-              ...client.individualProfile,
-              taxId: client.individualProfile.taxId
-                ? decryptSafe(client.individualProfile.taxId)
-                : null,
-            }
-          : null,
-        businessProfile: client.businessProfile
-          ? {
-              ...client.businessProfile,
-              taxId: client.businessProfile.taxId
-                ? decryptSafe(client.businessProfile.taxId)
-                : null,
-            }
-          : null,
-      })),
-      pagination: {
-        page,
-        pageSize,
-        total,
-        totalPages: Math.ceil(total / pageSize),
+      data: data.map(mapClient),
+      pagination: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
+      stats: {
+        totalCount,
+        individualsCount,
+        businessesCount,
+        activeRelationshipsCount: activeRelCount,
+        criticalRiskCount,
       },
     }
   }
