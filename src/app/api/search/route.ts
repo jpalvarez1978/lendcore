@@ -60,17 +60,27 @@ export async function GET(request: NextRequest) {
     }
 
     const results: SearchResult[] = []
-    const queryLower = query.toLowerCase()
+    const q = query.trim()
 
-    // OPTIMIZACIÓN AGRESIVA: Solo 15 registros, procesamiento ultra-rápido
+    // ── Búsqueda a nivel de base de datos (busca en TODOS los registros) ───
     const [clients, loans] = await Promise.all([
       canViewClients
         ? prisma.client.findMany({
-            take: 15, // Reducido de 30 a 15
+            where: {
+              OR: [
+                { individualProfile: { firstName: { contains: q, mode: 'insensitive' } } },
+                { individualProfile: { lastName:  { contains: q, mode: 'insensitive' } } },
+                { businessProfile:   { businessName: { contains: q, mode: 'insensitive' } } },
+                { businessProfile:   { legalRepName: { contains: q, mode: 'insensitive' } } },
+                { city: { contains: q, mode: 'insensitive' } },
+              ],
+            },
+            take: 8,
             select: {
               id: true,
               type: true,
-              phone: true, // Solo phone para búsqueda (menos desencriptación)
+              city: true,
+              phone: true,
               individualProfile: {
                 select: {
                   firstName: true,
@@ -90,7 +100,15 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
       canViewLoans
         ? prisma.loan.findMany({
-            take: 15, // Reducido de 30 a 15
+            where: {
+              OR: [
+                { loanNumber: { contains: q, mode: 'insensitive' } },
+                { client: { individualProfile: { firstName: { contains: q, mode: 'insensitive' } } } },
+                { client: { individualProfile: { lastName:  { contains: q, mode: 'insensitive' } } } },
+                { client: { businessProfile:   { businessName: { contains: q, mode: 'insensitive' } } } },
+              ],
+            },
+            take: 6,
             select: {
               id: true,
               loanNumber: true,
@@ -119,71 +137,32 @@ export async function GET(request: NextRequest) {
         : Promise.resolve([]),
     ])
 
-    // Procesar clientes - ULTRA OPTIMIZADO
-    let clientMatches = 0
+    // ── Mapear clientes a resultados ──────────────────────────────────────
     for (const client of clients) {
-      if (clientMatches >= 6) break // Máximo 6 clientes
-
-      const name = getClientName(client).toLowerCase()
-
-      // Early exit: verificar nombre primero (más común)
-      if (name.includes(queryLower)) {
-        const phone = decryptSafe(client.phone)
-        const taxId = client.type === 'INDIVIDUAL'
-          ? decryptSafe(client.individualProfile?.taxId)
-          : decryptSafe(client.businessProfile?.taxId)
-
-        results.push({
-          id: client.id,
-          type: 'client',
-          title: getClientName(client),
-          subtitle: [taxId, phone].filter(Boolean).join(' • ') || 'Sin identificador',
-          url: `/dashboard/clientes/${client.id}`,
-          metadata: client.type === 'INDIVIDUAL' ? 'Persona Física' : 'Empresa',
-        })
-        clientMatches++
-        continue
-      }
-
-      // Si no matchea nombre, verificar phone y taxId
-      const phone = decryptSafe(client.phone).toLowerCase()
-      const taxId = (client.type === 'INDIVIDUAL'
+      const taxId = client.type === 'INDIVIDUAL'
         ? decryptSafe(client.individualProfile?.taxId)
-        : decryptSafe(client.businessProfile?.taxId)).toLowerCase()
+        : decryptSafe(client.businessProfile?.taxId)
 
-      if (phone.includes(queryLower) || taxId.includes(queryLower)) {
-        results.push({
-          id: client.id,
-          type: 'client',
-          title: getClientName(client),
-          subtitle: [taxId, phone].filter(Boolean).join(' • ') || 'Sin identificador',
-          url: `/dashboard/clientes/${client.id}`,
-          metadata: client.type === 'INDIVIDUAL' ? 'Persona Física' : 'Empresa',
-        })
-        clientMatches++
-      }
+      results.push({
+        id: client.id,
+        type: 'client',
+        title: getClientName(client),
+        subtitle: [taxId, client.city].filter(Boolean).join(' • ') || 'Sin identificador',
+        url: `/dashboard/clientes/${client.id}`,
+        metadata: client.type === 'INDIVIDUAL' ? 'Persona Física' : 'Empresa',
+      })
     }
 
-    // Procesar préstamos - ULTRA OPTIMIZADO
-    let loanMatches = 0
+    // ── Mapear préstamos a resultados ─────────────────────────────────────
     for (const loan of loans) {
-      if (loanMatches >= 6) break // Máximo 6 préstamos
-
-      const loanNumber = loan.loanNumber.toLowerCase()
-      const clientName = getClientName(loan.client).toLowerCase()
-
-      // Verificar loan number primero (más específico)
-      if (loanNumber.includes(queryLower) || clientName.includes(queryLower)) {
-        results.push({
-          id: loan.id,
-          type: 'loan',
-          title: `Préstamo ${loan.loanNumber}`,
-          subtitle: getClientName(loan.client) || 'Cliente',
-          url: `/dashboard/prestamos/${loan.id}`,
-          metadata: `${currencyFormatter.format(Number(loan.principalAmount))} • ${loan.status}`,
-        })
-        loanMatches++
-      }
+      results.push({
+        id: loan.id,
+        type: 'loan',
+        title: `Préstamo ${loan.loanNumber}`,
+        subtitle: getClientName(loan.client) || 'Cliente',
+        url: `/dashboard/prestamos/${loan.id}`,
+        metadata: `${currencyFormatter.format(Number(loan.principalAmount))} • ${loan.status}`,
+      })
     }
 
     return NextResponse.json({
